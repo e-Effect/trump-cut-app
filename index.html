@@ -71,6 +71,44 @@
       grid-template-columns: 1fr 1fr 1fr;
       gap: 10px;
     }
+    .card-picker {
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      padding: 10px;
+      background: #ffffff;
+    }
+    .picker-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 6px;
+    }
+    .picker-row:last-child {
+      margin-bottom: 0;
+    }
+    .pick-btn {
+      min-width: 40px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      background: #f8fafc;
+      padding: 6px 8px;
+      font-size: 0.9rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .pick-btn.active {
+      background: #e0e7ff;
+      border-color: #6366f1;
+      color: #312e81;
+    }
+    .pick-btn.red {
+      color: #dc2626;
+    }
+    .card-chip {
+      margin-top: 8px;
+      font-weight: 700;
+      font-size: 1rem;
+    }
     .result {
       margin-top: 8px;
       padding: 14px;
@@ -244,18 +282,24 @@
       <div class="row">
         <div>
           <label for="bottomSuit">カット後の一番下カード</label>
-          <div class="row3">
-            <select id="bottomSuit"></select>
-            <select id="bottomRank"></select>
-            <input id="bottomCard" type="text" readonly />
+          <div class="card-picker">
+            <div id="bottomSuitButtons" class="picker-row"></div>
+            <div id="bottomRankButtons1" class="picker-row"></div>
+            <div id="bottomRankButtons2" class="picker-row"></div>
+            <div id="bottomRankButtons3" class="picker-row"></div>
+            <input id="bottomCardCode" type="hidden" />
+            <div id="bottomCard" class="card-chip"></div>
           </div>
         </div>
         <div>
           <label for="targetSuit">探したいカード</label>
-          <div class="row3">
-            <select id="targetSuit"></select>
-            <select id="targetRank"></select>
-            <input id="targetCard" type="text" readonly />
+          <div class="card-picker">
+            <div id="targetSuitButtons" class="picker-row"></div>
+            <div id="targetRankButtons1" class="picker-row"></div>
+            <div id="targetRankButtons2" class="picker-row"></div>
+            <div id="targetRankButtons3" class="picker-row"></div>
+            <input id="targetCardCode" type="hidden" />
+            <div id="targetCard" class="card-chip"></div>
           </div>
         </div>
       </div>
@@ -289,10 +333,16 @@
   <script>
     const bottomCardInput = document.getElementById("bottomCard");
     const targetCardInput = document.getElementById("targetCard");
-    const bottomSuit = document.getElementById("bottomSuit");
-    const bottomRank = document.getElementById("bottomRank");
-    const targetSuit = document.getElementById("targetSuit");
-    const targetRank = document.getElementById("targetRank");
+    const bottomCardCode = document.getElementById("bottomCardCode");
+    const targetCardCode = document.getElementById("targetCardCode");
+    const bottomSuitButtons = document.getElementById("bottomSuitButtons");
+    const bottomRankButtons1 = document.getElementById("bottomRankButtons1");
+    const bottomRankButtons2 = document.getElementById("bottomRankButtons2");
+    const bottomRankButtons3 = document.getElementById("bottomRankButtons3");
+    const targetSuitButtons = document.getElementById("targetSuitButtons");
+    const targetRankButtons1 = document.getElementById("targetRankButtons1");
+    const targetRankButtons2 = document.getElementById("targetRankButtons2");
+    const targetRankButtons3 = document.getElementById("targetRankButtons3");
     const openSettingsBtn = document.getElementById("openSettingsBtn");
     const closeSettingsBtn = document.getElementById("closeSettingsBtn");
     const settingsModal = document.getElementById("settingsModal");
@@ -359,6 +409,16 @@
 
     const ACTIVE_DECK = MNEMONICA_COMPACT.map(fromCompactCard);
     const PHRASE_STORAGE_KEY = "trump-cut-app-phrases-v1";
+    const SUIT_ROWS = ["S", "H", "D", "C"];
+    const RANK_ROWS = [
+      ["A", "2", "3", "4", "5"],
+      ["6", "7", "8", "9", "10"],
+      ["J", "Q", "K"]
+    ];
+    let bottomSuitValue = "C";
+    let bottomRankValue = "K";
+    let targetSuitValue = "S";
+    let targetRankValue = "A";
 
     function normalizeCard(raw) {
       const value = (raw || "").trim().toUpperCase();
@@ -405,12 +465,14 @@
       errorEl.textContent = "";
     }
 
-    function setCardFromSelects(suitEl, rankEl, outputEl) {
-      outputEl.value = `${SUIT_SYMBOLS[suitEl.value]}${rankEl.value}`;
+    function setCardDisplay(suitValue, rankValue, codeEl, outputEl) {
+      codeEl.value = `${suitValue}-${rankValue}`;
+      outputEl.textContent = `${SUIT_SYMBOLS[suitValue]}${rankValue}`;
+      outputEl.style.color = SUIT_COLORS[suitValue] || "#111827";
     }
 
-    function getCardCode(suitEl, rankEl) {
-      return `${suitEl.value}-${rankEl.value}`;
+    function getCardCode(codeEl) {
+      return codeEl.value;
     }
 
     function formatCardForDisplay(cardCode) {
@@ -626,29 +688,76 @@
       }
     }
 
-    function fillSelect(selectEl, values, labels = null) {
-      selectEl.innerHTML = "";
+    function buildButtonRow(container, values, getCurrent, onPick, isSuit = false) {
+      container.innerHTML = "";
       for (const value of values) {
-        const option = document.createElement("option");
-        option.value = value;
-        option.textContent = labels && labels[value] ? labels[value] : value;
-        if (SUIT_COLORS[value]) {
-          option.style.color = SUIT_COLORS[value];
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "pick-btn";
+        btn.textContent = isSuit ? SUIT_SYMBOLS[value] : value;
+        if (isSuit && (value === "H" || value === "D")) {
+          btn.classList.add("red");
         }
-        selectEl.appendChild(option);
+        if (value === getCurrent()) {
+          btn.classList.add("active");
+        }
+        btn.addEventListener("click", () => onPick(value));
+        container.appendChild(btn);
       }
     }
 
-    function updateSuitSelectColor(selectEl) {
-      const color = SUIT_COLORS[selectEl.value] || "#111827";
-      selectEl.style.color = color;
-      selectEl.style.fontWeight = "700";
+    function syncCardPickers() {
+      buildButtonRow(bottomSuitButtons, SUIT_ROWS, () => bottomSuitValue, (value) => {
+        bottomSuitValue = value;
+        syncCardPickers();
+        render();
+      }, true);
+      buildButtonRow(targetSuitButtons, SUIT_ROWS, () => targetSuitValue, (value) => {
+        targetSuitValue = value;
+        syncCardPickers();
+        render();
+      }, true);
+
+      buildButtonRow(bottomRankButtons1, RANK_ROWS[0], () => bottomRankValue, (value) => {
+        bottomRankValue = value;
+        syncCardPickers();
+        render();
+      });
+      buildButtonRow(bottomRankButtons2, RANK_ROWS[1], () => bottomRankValue, (value) => {
+        bottomRankValue = value;
+        syncCardPickers();
+        render();
+      });
+      buildButtonRow(bottomRankButtons3, RANK_ROWS[2], () => bottomRankValue, (value) => {
+        bottomRankValue = value;
+        syncCardPickers();
+        render();
+      });
+
+      buildButtonRow(targetRankButtons1, RANK_ROWS[0], () => targetRankValue, (value) => {
+        targetRankValue = value;
+        syncCardPickers();
+        render();
+      });
+      buildButtonRow(targetRankButtons2, RANK_ROWS[1], () => targetRankValue, (value) => {
+        targetRankValue = value;
+        syncCardPickers();
+        render();
+      });
+      buildButtonRow(targetRankButtons3, RANK_ROWS[2], () => targetRankValue, (value) => {
+        targetRankValue = value;
+        syncCardPickers();
+        render();
+      });
+
+      setCardDisplay(bottomSuitValue, bottomRankValue, bottomCardCode, bottomCardInput);
+      setCardDisplay(targetSuitValue, targetRankValue, targetCardCode, targetCardInput);
     }
 
     function render() {
       clearError();
-      const bottom = getCardCode(bottomSuit, bottomRank);
-      const target = getCardCode(targetSuit, targetRank);
+      const bottom = getCardCode(bottomCardCode);
+      const target = getCardCode(targetCardCode);
 
       if (!bottom || !target) {
         resultEl.textContent = "一番下カードと探したいカードを入力してください";
@@ -721,38 +830,7 @@
 
     buildPhraseInputs();
     applyPhrasesToInputs();
-    fillSelect(bottomSuit, SUIT_LIST, SUIT_SYMBOLS);
-    fillSelect(targetSuit, SUIT_LIST, SUIT_SYMBOLS);
-    fillSelect(bottomRank, RANK_LIST);
-    fillSelect(targetRank, RANK_LIST);
-
-    bottomSuit.value = "C";
-    bottomRank.value = "K";
-    targetSuit.value = "S";
-    targetRank.value = "A";
-    updateSuitSelectColor(bottomSuit);
-    updateSuitSelectColor(targetSuit);
-    setCardFromSelects(bottomSuit, bottomRank, bottomCardInput);
-    setCardFromSelects(targetSuit, targetRank, targetCardInput);
-
-    bottomSuit.addEventListener("change", () => {
-      updateSuitSelectColor(bottomSuit);
-      setCardFromSelects(bottomSuit, bottomRank, bottomCardInput);
-      render();
-    });
-    bottomRank.addEventListener("change", () => {
-      setCardFromSelects(bottomSuit, bottomRank, bottomCardInput);
-      render();
-    });
-    targetSuit.addEventListener("change", () => {
-      updateSuitSelectColor(targetSuit);
-      setCardFromSelects(targetSuit, targetRank, targetCardInput);
-      render();
-    });
-    targetRank.addEventListener("change", () => {
-      setCardFromSelects(targetSuit, targetRank, targetCardInput);
-      render();
-    });
+    syncCardPickers();
     savePhrasesBtn.addEventListener("click", savePhrases);
     clearPhrasesBtn.addEventListener("click", () => {
       for (const input of getPhraseInputs()) {
