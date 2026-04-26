@@ -363,9 +363,12 @@
       const matches = [];
       const directionTag = orientation === "front" ? "【おもて向き】" : "【うら向き】";
       const timeText = `${hour24}:${String(minute).padStart(2, "0")}`;
+      const seconds = now.getSeconds();
+      const remainSeconds = 60 - seconds;
+      const activeSuffix = `\n（終了まであと${remainSeconds}秒）`;
 
       if (minute === position) {
-        matches.push(`「今の${timeText}なので${position}枚目」${directionTag}`);
+        matches.push(`「今の${timeText}なので${position}枚目」${directionTag}${activeSuffix}`);
       }
 
       if (hour12 === position) {
@@ -373,10 +376,10 @@
       }
 
       if (hour12 + minute === position) {
-        matches.push(`「今は${hour12}時${minute}分なので、足して${position}枚目」${directionTag}`);
+        matches.push(`「今は${hour12}時${minute}分なので、足して${position}枚目」${directionTag}${activeSuffix}`);
       }
       if (hour24 + minute === position && hour24 !== hour12) {
-        matches.push(`「今は${hour24}時${minute}分なので、足して${position}枚目」${directionTag}`);
+        matches.push(`「今は${hour24}時${minute}分なので、足して${position}枚目」${directionTag}${activeSuffix}`);
       }
 
       if (day === position) {
@@ -395,6 +398,54 @@
       }
 
       return matches;
+    }
+
+    function getUpcomingLuckyHints(position, orientation) {
+      const now = new Date();
+      const seconds = now.getSeconds();
+      const waitSeconds = 60 - seconds;
+      if (waitSeconds <= 0 || waitSeconds > 30) {
+        return [];
+      }
+
+      const next = new Date(now.getTime() + waitSeconds * 1000);
+      const month = next.getMonth() + 1;
+      const day = next.getDate();
+      const hour24 = next.getHours();
+      const minute = next.getMinutes();
+      const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
+      const directionTag = orientation === "front" ? "【おもて向き】" : "【うら向き】";
+      const timeText = `${hour24}:${String(minute).padStart(2, "0")}`;
+      const pendingSuffix = `\n（有効まであと${waitSeconds}秒）`;
+      const hints = [];
+
+      if (minute === position) {
+        hints.push(`「あと${waitSeconds}秒で${timeText}。${position}分になるので${position}枚目」${directionTag}${pendingSuffix}`);
+      }
+      if (hour12 === position) {
+        hints.push(`「あと${waitSeconds}秒で${hour12}時台。${position}枚目」${directionTag}`);
+      }
+      if (hour12 + minute === position) {
+        hints.push(`「あと${waitSeconds}秒で${hour12}時${minute}分。足して${position}枚目」${directionTag}${pendingSuffix}`);
+      }
+      if (hour24 + minute === position && hour24 !== hour12) {
+        hints.push(`「あと${waitSeconds}秒で${hour24}時${minute}分。足して${position}枚目」${directionTag}${pendingSuffix}`);
+      }
+      if (day === position) {
+        hints.push(`「あと${waitSeconds}秒で日付が${day}日。${position}枚目」${directionTag}`);
+      }
+      const monthDayConcat = Number(`${month}${day}`);
+      if (monthDayConcat === position) {
+        hints.push(`「あと${waitSeconds}秒で${month}月${day}日。${position}枚目」${directionTag}`);
+      } else {
+        const monthDayDigitSum = sumDigits(monthDayConcat);
+        if (monthDayDigitSum === position) {
+          const expanded = `${String(monthDayConcat).split("").join("＋")}`;
+          hints.push(`「あと${waitSeconds}秒で${month}月${day}日。${expanded}で${position}枚目」${directionTag}`);
+        }
+      }
+
+      return hints;
     }
 
     function buildPhraseInputs() {
@@ -492,11 +543,18 @@
         ...getLuckyPatternMatches(backPosition, "back"),
         ...getLuckyPatternMatches(facePosition, "front")
       ];
+      const upcomingHints = [
+        ...getUpcomingLuckyHints(backPosition, "back"),
+        ...getUpcomingLuckyHints(facePosition, "front")
+      ];
 
       const line1 = `${formatCardForDisplay(target)} は上から ${backPosition} 枚目です（表向き換算: ${facePosition} 枚目）`;
       const line2 = `フレーズ: ${phrase ? `「${phrase}」` : "未設定"}`;
       if (luckyMatches.length > 0) {
-        const line3 = luckyMatches.join(" / ");
+        const line3 = luckyMatches.join("\n");
+        resultEl.textContent = `${line1}\n${line2}\n${line3}`;
+      } else if (upcomingHints.length > 0) {
+        const line3 = upcomingHints.join("\n");
         resultEl.textContent = `${line1}\n${line2}\n${line3}`;
       } else {
         resultEl.textContent = `${line1}\n${line2}`;
@@ -562,6 +620,7 @@
         closeSettings();
       }
     });
+    setInterval(render, 1000);
 
     render();
   </script>
