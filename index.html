@@ -81,6 +81,29 @@
       color: #312e81;
       white-space: pre-line;
     }
+    .panel {
+      margin-top: 8px;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid transparent;
+      white-space: pre-line;
+      font-weight: 600;
+    }
+    .panel-phrase {
+      background: #fef9c3;
+      border-color: #fde047;
+      color: #713f12;
+    }
+    .panel-lucky {
+      background: #fee2e2;
+      border-color: #fca5a5;
+      color: #991b1b;
+    }
+    .panel-spell {
+      background: #dcfce7;
+      border-color: #86efac;
+      color: #166534;
+    }
     .error {
       margin-top: 8px;
       padding: 12px;
@@ -223,6 +246,9 @@
       </div>
 
       <div id="result" class="result">ここに結果が表示されます</div>
+      <div id="phrasePanel" class="panel panel-phrase"></div>
+      <div id="luckyPanel" class="panel panel-lucky" style="display:none;"></div>
+      <div id="spellPanel" class="panel panel-spell" style="display:none;"></div>
       <div id="error" class="error" style="display:none;"></div>
     </section>
   </main>
@@ -258,6 +284,9 @@
     const savePhrasesBtn = document.getElementById("savePhrasesBtn");
     const clearPhrasesBtn = document.getElementById("clearPhrasesBtn");
     const resultEl = document.getElementById("result");
+    const phrasePanelEl = document.getElementById("phrasePanel");
+    const luckyPanelEl = document.getElementById("luckyPanel");
+    const spellPanelEl = document.getElementById("spellPanel");
     const errorEl = document.getElementById("error");
 
     const SUIT_LIST = ["S", "H", "D", "C"];
@@ -326,6 +355,9 @@
       errorEl.style.display = "block";
       errorEl.textContent = message;
       resultEl.textContent = "計算できません";
+      phrasePanelEl.textContent = "";
+      luckyPanelEl.style.display = "none";
+      spellPanelEl.style.display = "none";
     }
 
     function clearError() {
@@ -550,15 +582,23 @@
 
       const line1 = `${formatCardForDisplay(target)} は上から ${backPosition} 枚目です（表向き換算: ${facePosition} 枚目）`;
       const line2 = `フレーズ: ${phrase ? `「${phrase}」` : "未設定"}`;
+      resultEl.textContent = line1;
+      phrasePanelEl.textContent = line2;
+
       if (luckyMatches.length > 0) {
-        const line3 = luckyMatches.join("\n");
-        resultEl.textContent = `${line1}\n${line2}\n${line3}`;
+        luckyPanelEl.style.display = "block";
+        luckyPanelEl.textContent = luckyMatches.join("\n");
       } else if (upcomingHints.length > 0) {
-        const line3 = upcomingHints.join("\n");
-        resultEl.textContent = `${line1}\n${line2}\n${line3}`;
+        luckyPanelEl.style.display = "block";
+        luckyPanelEl.textContent = upcomingHints.join("\n");
       } else {
-        resultEl.textContent = `${line1}\n${line2}`;
+        luckyPanelEl.style.display = "none";
+        luckyPanelEl.textContent = "";
       }
+
+      // スペルパターンは次段で実装予定。現状は未表示。
+      spellPanelEl.style.display = "none";
+      spellPanelEl.textContent = "";
     }
 
     function openSettings() {
