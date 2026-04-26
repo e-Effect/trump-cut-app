@@ -311,7 +311,7 @@
 </head>
 <body>
   <main class="container">
-    <div class="version">Version v1.0.4</div>
+    <div class="version">Version v1.0.5</div>
     <div class="header">
       <h1>True Cut</h1>
       <button id="openSettingsBtn" class="settings-btn" type="button" aria-label="設定">⚙</button>
@@ -343,7 +343,6 @@
         </div>
       </div>
 
-      <div id="result" class="result">ここに結果が表示されます</div>
       <div id="luckyPanel" class="panel panel-lucky" style="display:none;"></div>
       <div id="spellPanel" class="panel panel-spell" style="display:none;"></div>
       <div id="phrasePanel" class="panel panel-phrase" style="display:none;"></div>
@@ -394,7 +393,6 @@
     const exportPhrasesBtn = document.getElementById("exportPhrasesBtn");
     const importPhrasesBtn = document.getElementById("importPhrasesBtn");
     const importPhrasesFile = document.getElementById("importPhrasesFile");
-    const resultEl = document.getElementById("result");
     const basePanelEl = document.getElementById("basePanel");
     const phrasePanelEl = document.getElementById("phrasePanel");
     const luckyPanelEl = document.getElementById("luckyPanel");
@@ -497,8 +495,7 @@
     function showError(message) {
       errorEl.style.display = "block";
       errorEl.textContent = message;
-      resultEl.textContent = "計算できません";
-      basePanelEl.textContent = "";
+      basePanelEl.textContent = "計算できません";
       phrasePanelEl.textContent = "";
       phrasePanelEl.style.display = "none";
       luckyPanelEl.style.display = "none";
@@ -986,7 +983,11 @@
       const target = getCardCode(targetCardCode);
 
       if (!bottom || !target) {
-        resultEl.textContent = "一番下カードと探したいカードを入力してください";
+        basePanelEl.textContent = "ボトムカードと選ばれたカードを選んでください";
+        luckyPanelEl.style.display = "none";
+        spellPanelEl.style.display = "none";
+        phrasePanelEl.style.display = "none";
+        phrasePanelEl.textContent = "";
         return;
       }
 
@@ -1014,7 +1015,6 @@
       ];
 
       const line1 = `${formatCardForDisplay(target)} は上から ${backPosition} 枚目（表向き: ${facePosition} 枚目）`;
-      resultEl.textContent = "";
       basePanelEl.textContent = line1;
 
       if (luckyMatches.length > 0) {
