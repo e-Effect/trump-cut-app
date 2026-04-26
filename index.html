@@ -201,7 +201,7 @@
     }
     .phrase-grid {
       display: grid;
-      grid-template-columns: 80px 1fr;
+      grid-template-columns: 72px 1fr 118px 56px;
       gap: 8px;
       max-height: 320px;
       overflow: auto;
@@ -215,6 +215,25 @@
     .phrase-input {
       font-size: 0.9rem;
       padding: 8px 10px;
+    }
+    .phrase-select {
+      font-size: 0.86rem;
+      padding: 8px 8px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      background: #fff;
+    }
+    .auto-badge {
+      align-self: center;
+      justify-self: start;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #065f46;
+      background: #d1fae5;
+      border: 1px solid #6ee7b7;
+      border-radius: 999px;
+      padding: 2px 7px;
+      display: none;
     }
     .settings-actions {
       display: flex;
@@ -290,7 +309,7 @@
 </head>
 <body>
   <main class="container">
-    <div class="version">Version v1.0.0</div>
+    <div class="version">Version v1.0.1</div>
     <div class="header">
       <h1>True Cut</h1>
       <button id="openSettingsBtn" class="settings-btn" type="button" aria-label="設定">⚙</button>
@@ -671,9 +690,31 @@
         input.type = "text";
         input.placeholder = "例: えらんだカード";
         input.dataset.position = String(i);
+        input.id = `phrase-input-${i}`;
+
+        const select = document.createElement("select");
+        select.className = "phrase-select";
+        select.dataset.position = String(i);
+        select.id = `phrase-orientation-${i}`;
+        const optionBack = document.createElement("option");
+        optionBack.value = "back";
+        optionBack.textContent = "うら向き";
+        const optionFront = document.createElement("option");
+        optionFront.value = "front";
+        optionFront.textContent = "おもて向き";
+        select.appendChild(optionBack);
+        select.appendChild(optionFront);
+
+        const autoBadge = document.createElement("div");
+        autoBadge.className = "auto-badge";
+        autoBadge.textContent = "自動";
+        autoBadge.dataset.position = String(i);
+        autoBadge.id = `phrase-auto-${i}`;
 
         phraseGrid.appendChild(label);
         phraseGrid.appendChild(input);
+        phraseGrid.appendChild(select);
+        phraseGrid.appendChild(autoBadge);
       }
     }
 
@@ -681,37 +722,85 @@
       return Array.from(phraseGrid.querySelectorAll("input[data-position]"));
     }
 
-    function savePhrases() {
-      const phrases = {};
-      for (const input of getPhraseInputs()) {
-        const text = input.value.trim();
-        if (text) {
-          phrases[input.dataset.position] = text;
-        }
+    function getPhraseSelects() {
+      return Array.from(phraseGrid.querySelectorAll("select[data-position]"));
+    }
+
+    function getPhraseState() {
+      const raw = localStorage.getItem(PHRASE_STORAGE_KEY);
+      const empty = {};
+      for (let i = 1; i <= 52; i += 1) {
+        empty[String(i)] = { text: "", orientation: "back", autoFrom: null };
       }
-      localStorage.setItem(PHRASE_STORAGE_KEY, JSON.stringify(phrases));
+      if (!raw) {
+        return empty;
+      }
+      try {
+        const data = JSON.parse(raw);
+        // backward compatibility: old format {"1":"text", ...}
+        if (!data || typeof data !== "object") {
+          return empty;
+        }
+        if (!data["1"] || typeof data["1"] === "string") {
+          for (let i = 1; i <= 52; i += 1) {
+            const key = String(i);
+            const text = typeof data[key] === "string" ? data[key].trim() : "";
+            empty[key] = { text, orientation: "back", autoFrom: null };
+          }
+          return empty;
+        }
+        for (let i = 1; i <= 52; i += 1) {
+          const key = String(i);
+          const entry = data[key] || {};
+          empty[key] = {
+            text: typeof entry.text === "string" ? entry.text.trim() : "",
+            orientation: entry.orientation === "front" ? "front" : "back",
+            autoFrom: Number.isInteger(entry.autoFrom) ? entry.autoFrom : null
+          };
+        }
+        return empty;
+      } catch {
+        return empty;
+      }
+    }
+
+    function setPhraseState(state) {
+      localStorage.setItem(PHRASE_STORAGE_KEY, JSON.stringify(state));
+    }
+
+    function getMirrorPosition(position) {
+      return 53 - position;
+    }
+
+    function savePhrases() {
+      const state = collectPhraseStateFromInputs();
+      setPhraseState(state);
       render();
     }
 
-    function collectPhrasesFromInputs() {
-      const phrases = {};
+    function collectPhraseStateFromInputs() {
+      const state = {};
       for (const input of getPhraseInputs()) {
-        const text = input.value.trim();
-        if (text) {
-          phrases[input.dataset.position] = text;
-        }
+        const key = input.dataset.position;
+        const select = document.getElementById(`phrase-orientation-${key}`);
+        const autoFrom = Number(input.dataset.autoFrom || 0);
+        state[key] = {
+          text: input.value.trim(),
+          orientation: select && select.value === "front" ? "front" : "back",
+          autoFrom: autoFrom > 0 ? autoFrom : null
+        };
       }
-      return phrases;
+      return state;
     }
 
     function exportPhrases() {
-      const phrases = collectPhrasesFromInputs();
+      const phraseState = collectPhraseStateFromInputs();
       const payload = {
         app: "True Cut",
         type: "phrase-settings",
-        version: 1,
+        version: 2,
         exportedAt: new Date().toISOString(),
-        phrases
+        phrases: phraseState
       };
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
@@ -735,31 +824,88 @@
       for (let i = 1; i <= 52; i += 1) {
         const key = String(i);
         const value = source[key];
-        if (typeof value === "string" && value.trim()) {
-          normalized[key] = value.trim();
+        if (typeof value === "string") {
+          normalized[key] = { text: value.trim(), orientation: "back", autoFrom: null };
+          continue;
         }
+        normalized[key] = {
+          text: value && typeof value.text === "string" ? value.text.trim() : "",
+          orientation: value && value.orientation === "front" ? "front" : "back",
+          autoFrom: value && Number.isInteger(value.autoFrom) ? value.autoFrom : null
+        };
       }
-      localStorage.setItem(PHRASE_STORAGE_KEY, JSON.stringify(normalized));
+      setPhraseState(normalized);
       applyPhrasesToInputs();
       render();
     }
 
     function loadPhrases() {
-      const raw = localStorage.getItem(PHRASE_STORAGE_KEY);
-      if (!raw) {
-        return {};
-      }
-      try {
-        return JSON.parse(raw) || {};
-      } catch {
-        return {};
-      }
+      return getPhraseState();
     }
 
     function applyPhrasesToInputs() {
       const phrases = loadPhrases();
       for (const input of getPhraseInputs()) {
-        input.value = phrases[input.dataset.position] || "";
+        const key = input.dataset.position;
+        const entry = phrases[key] || { text: "", orientation: "back", autoFrom: null };
+        input.value = entry.text || "";
+        input.dataset.autoFrom = entry.autoFrom ? String(entry.autoFrom) : "";
+        const select = document.getElementById(`phrase-orientation-${key}`);
+        if (select) {
+          select.value = entry.orientation === "front" ? "front" : "back";
+        }
+        const badge = document.getElementById(`phrase-auto-${key}`);
+        if (badge) {
+          badge.style.display = entry.autoFrom ? "inline-block" : "none";
+        }
+      }
+    }
+
+    function updatePhraseAutoLink(sourcePos) {
+      const sourceInput = document.getElementById(`phrase-input-${sourcePos}`);
+      const sourceSelect = document.getElementById(`phrase-orientation-${sourcePos}`);
+      if (!sourceInput || !sourceSelect) {
+        return;
+      }
+      sourceInput.dataset.autoFrom = "";
+      const sourceText = sourceInput.value.trim();
+      const mirrorPos = getMirrorPosition(sourcePos);
+      const mirrorInput = document.getElementById(`phrase-input-${mirrorPos}`);
+      const mirrorSelect = document.getElementById(`phrase-orientation-${mirrorPos}`);
+      const mirrorBadge = document.getElementById(`phrase-auto-${mirrorPos}`);
+      if (!mirrorInput || !mirrorSelect || !mirrorBadge) {
+        return;
+      }
+
+      const mirrorAutoFrom = Number(mirrorInput.dataset.autoFrom || 0);
+      const mirrorText = mirrorInput.value.trim();
+      const shouldAutoFill = sourceText && (mirrorText === "" || mirrorAutoFrom === sourcePos);
+      if (shouldAutoFill) {
+        mirrorInput.value = sourceText;
+        mirrorInput.dataset.autoFrom = String(sourcePos);
+        mirrorSelect.value = sourceSelect.value === "back" ? "front" : "back";
+        mirrorBadge.style.display = "inline-block";
+      } else if (mirrorAutoFrom === sourcePos && !sourceText) {
+        mirrorInput.value = "";
+        mirrorInput.dataset.autoFrom = "";
+        mirrorSelect.value = "back";
+        mirrorBadge.style.display = "none";
+      }
+
+      const sourceBadge = document.getElementById(`phrase-auto-${sourcePos}`);
+      if (sourceBadge) {
+        sourceBadge.style.display = "none";
+      }
+    }
+
+    function detachPhraseAuto(pos) {
+      const input = document.getElementById(`phrase-input-${pos}`);
+      const badge = document.getElementById(`phrase-auto-${pos}`);
+      if (input && input.dataset.autoFrom) {
+        input.dataset.autoFrom = "";
+        if (badge) {
+          badge.style.display = "none";
+        }
       }
     }
 
@@ -848,7 +994,8 @@
         return;
       }
       const phrases = loadPhrases();
-      const phrase = phrases[String(calc.position)];
+      const phraseEntry = phrases[String(calc.position)] || { text: "", orientation: "back" };
+      const phrase = phraseEntry.text || "";
       const backPosition = calc.position;
       const facePosition = 53 - calc.position;
       const luckyMatches = [
@@ -889,7 +1036,8 @@
 
       if (phrase) {
         phrasePanelEl.style.display = "block";
-        phrasePanelEl.textContent = `保険（事前フレーズ）\n「${phrase}」`;
+        const orient = phraseEntry.orientation === "front" ? "【おもて向き】" : "【うら向き】";
+        phrasePanelEl.textContent = `保険（事前フレーズ）\n「${phrase}」${orient}`;
       } else {
         phrasePanelEl.style.display = "none";
         phrasePanelEl.textContent = "";
@@ -908,11 +1056,42 @@
 
     buildPhraseInputs();
     applyPhrasesToInputs();
+    for (const input of getPhraseInputs()) {
+      input.addEventListener("input", () => {
+        const pos = Number(input.dataset.position);
+        if (!Number.isInteger(pos)) {
+          return;
+        }
+        detachPhraseAuto(pos);
+        updatePhraseAutoLink(pos);
+        savePhrases();
+      });
+    }
+    for (const select of getPhraseSelects()) {
+      select.addEventListener("change", () => {
+        const pos = Number(select.dataset.position);
+        if (!Number.isInteger(pos)) {
+          return;
+        }
+        detachPhraseAuto(pos);
+        savePhrases();
+      });
+    }
     syncCardPickers();
     savePhrasesBtn.addEventListener("click", savePhrases);
     clearPhrasesBtn.addEventListener("click", () => {
       for (const input of getPhraseInputs()) {
         input.value = "";
+        input.dataset.autoFrom = "";
+      }
+      for (const select of getPhraseSelects()) {
+        select.value = "back";
+      }
+      for (let i = 1; i <= 52; i += 1) {
+        const badge = document.getElementById(`phrase-auto-${i}`);
+        if (badge) {
+          badge.style.display = "none";
+        }
       }
       localStorage.removeItem(PHRASE_STORAGE_KEY);
       render();
