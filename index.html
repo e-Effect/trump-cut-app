@@ -302,6 +302,27 @@
       H: "#dc2626",
       D: "#dc2626"
     };
+    const SUIT_READINGS = {
+      S: ["スペード"],
+      H: ["ハート"],
+      D: ["ダイヤ"],
+      C: ["クラブ", "クローバー"]
+    };
+    const RANK_READINGS = {
+      A: ["いち", "エース"],
+      "2": ["に"],
+      "3": ["さん"],
+      "4": ["よん"],
+      "5": ["ご"],
+      "6": ["ろく"],
+      "7": ["なな"],
+      "8": ["はち"],
+      "9": ["きゅう"],
+      "10": ["じゅう"],
+      J: ["11"],
+      Q: ["12"],
+      K: ["13"]
+    };
     const RANK_LIST = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
     const SUITS = new Set(SUIT_LIST);
     const RANKS = new Set(RANK_LIST);
@@ -383,6 +404,22 @@
         .split("")
         .map((ch) => Number(ch))
         .reduce((acc, cur) => acc + cur, 0);
+    }
+
+    function rankToNumber(rank) {
+      if (rank === "A") {
+        return 1;
+      }
+      if (rank === "J") {
+        return 11;
+      }
+      if (rank === "Q") {
+        return 12;
+      }
+      if (rank === "K") {
+        return 13;
+      }
+      return Number(rank);
     }
 
     function getLuckyPatternMatches(position, orientation) {
@@ -478,6 +515,43 @@
       }
 
       return hints;
+    }
+
+    function getSpellPatternMatches(cardCode, position, orientation) {
+      const [suit, rank] = cardCode.split("-");
+      const suitReadings = SUIT_READINGS[suit] || [];
+      const rankReadings = RANK_READINGS[rank] || [rank];
+      const rankNumber = rankToNumber(rank);
+      const directionTag = orientation === "front" ? "【おもて向き】" : "【うら向き】";
+      const matches = [];
+      const dedupe = new Set();
+
+      // パターン1: 「スートのランク」を文字どおり配る（"の"は必須）
+      for (const suitWord of suitReadings) {
+        for (const rankWord of rankReadings) {
+          const phrase = `${suitWord}の${rankWord}`;
+          if (phrase.length === position) {
+            const msg = `「${phrase}」と文字どおり配る${directionTag}`;
+            if (!dedupe.has(msg)) {
+              dedupe.add(msg);
+              matches.push(msg);
+            }
+          }
+        }
+      }
+
+      // パターン2: 「スート名 + 数値枚数で配る」
+      if (rankNumber === position) {
+        for (const suitWord of suitReadings) {
+          const msg = `「${suitWord}＋${rankNumber}枚配る」${directionTag}`;
+          if (!dedupe.has(msg)) {
+            dedupe.add(msg);
+            matches.push(msg);
+          }
+        }
+      }
+
+      return matches;
     }
 
     function buildPhraseInputs() {
@@ -579,6 +653,10 @@
         ...getUpcomingLuckyHints(backPosition, "back"),
         ...getUpcomingLuckyHints(facePosition, "front")
       ];
+      const spellMatches = [
+        ...getSpellPatternMatches(target, backPosition, "back"),
+        ...getSpellPatternMatches(target, facePosition, "front")
+      ];
 
       const line1 = `${formatCardForDisplay(target)} は上から ${backPosition} 枚目です（表向き換算: ${facePosition} 枚目）`;
       const line2 = `フレーズ: ${phrase ? `「${phrase}」` : "未設定"}`;
@@ -597,8 +675,13 @@
       }
 
       // スペルパターンは次段で実装予定。現状は未表示。
-      spellPanelEl.style.display = "none";
-      spellPanelEl.textContent = "";
+      if (spellMatches.length > 0) {
+        spellPanelEl.style.display = "block";
+        spellPanelEl.textContent = spellMatches.join("\n");
+      } else {
+        spellPanelEl.style.display = "none";
+        spellPanelEl.textContent = "";
+      }
     }
 
     function openSettings() {
