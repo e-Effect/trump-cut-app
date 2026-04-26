@@ -353,7 +353,7 @@
         .reduce((acc, cur) => acc + cur, 0);
     }
 
-    function getLuckyPatternMatches(position, modeLabel) {
+    function getLuckyPatternMatches(position, orientation) {
       const now = new Date();
       const month = now.getMonth() + 1;
       const day = now.getDate();
@@ -361,31 +361,36 @@
       const minute = now.getMinutes();
       const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
       const matches = [];
-      const prefix = modeLabel ? `${modeLabel}: ` : "";
+      const directionTag = orientation === "front" ? "【おもて向き】" : "【うら向き】";
+      const timeText = `${hour24}:${String(minute).padStart(2, "0")}`;
 
       if (minute === position) {
-        matches.push(`${prefix}時刻一致: 今は ${hour24}:${String(minute).padStart(2, "0")}（${minute}分）`);
+        matches.push(`「今の${timeText}なので${position}枚目」${directionTag}`);
       }
 
       if (hour12 === position) {
-        matches.push(`${prefix}時一致: 今は ${hour12}時台`);
+        matches.push(`「今は ${hour12}時台なので${position}枚目」${directionTag}`);
       }
 
-      if (hour24 + minute === position) {
-        matches.push(`${prefix}時刻の和一致: ${hour24}+${minute}=${position}`);
+      if (hour12 + minute === position) {
+        matches.push(`「今は${hour12}時${minute}分なので、足して${position}枚目」${directionTag}`);
+      }
+      if (hour24 + minute === position && hour24 !== hour12) {
+        matches.push(`「今は${hour24}時${minute}分なので、足して${position}枚目」${directionTag}`);
       }
 
       if (day === position) {
-        matches.push(`${prefix}日付一致: 今日は ${day}日`);
+        matches.push(`「今日は${day}日ですので、${position}枚目」${directionTag}`);
       }
 
       const monthDayConcat = Number(`${month}${day}`);
       if (monthDayConcat === position) {
-        matches.push(`${prefix}月日連結一致: ${month}/${day} → ${monthDayConcat}`);
+        matches.push(`「今日は${month}月${day}日なので${position}枚目」${directionTag}`);
       } else {
         const monthDayDigitSum = sumDigits(monthDayConcat);
         if (monthDayDigitSum === position) {
-          matches.push(`${prefix}月日連結の桁和一致: ${month}/${day} → ${monthDayConcat} → ${monthDayDigitSum}`);
+          const expanded = `${String(monthDayConcat).split("").join("＋")}`;
+          matches.push(`「今日は${month}月${day}日なので${expanded}で${position}枚目」${directionTag}`);
         }
       }
 
@@ -484,8 +489,8 @@
       const backPosition = calc.position;
       const facePosition = 53 - calc.position;
       const luckyMatches = [
-        ...getLuckyPatternMatches(backPosition, `裏${backPosition}枚目`),
-        ...getLuckyPatternMatches(facePosition, `表${facePosition}枚目`)
+        ...getLuckyPatternMatches(backPosition, "back"),
+        ...getLuckyPatternMatches(facePosition, "front")
       ];
 
       const line1 = `${formatCardForDisplay(target)} は上から ${backPosition} 枚目です（表向き換算: ${facePosition} 枚目）`;
