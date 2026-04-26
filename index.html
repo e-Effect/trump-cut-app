@@ -348,7 +348,7 @@
 </head>
 <body>
   <main class="container">
-    <div class="version">Version v1.0.13</div>
+    <div class="version">Version v1.0.16</div>
     <div class="header">
       <h1>True Cut</h1>
       <div class="header-actions">
@@ -589,6 +589,7 @@
 
     function getLuckyPatternMatches(position, orientation) {
       const now = new Date();
+      const year = now.getFullYear();
       const month = now.getMonth() + 1;
       const day = now.getDate();
       const hour24 = now.getHours();
@@ -630,6 +631,17 @@
           matches.push(`「今日は${month}月${day}日なので${expanded}で${position}枚目」${directionTag}`);
         }
       }
+      const monthPlusDay = month + day;
+      if (monthPlusDay === position) {
+        matches.push(`「今日は${month}月${day}日なので${month}＋${day}で${position}枚目」${directionTag}`);
+      }
+
+      const yearMonthDayDigits = `${year}${month}${day}`;
+      const yearMonthDayDigitSum = sumDigits(yearMonthDayDigits);
+      if (yearMonthDayDigitSum === position) {
+        const expanded = yearMonthDayDigits.split("").join("＋");
+        matches.push(`「今日は${year}年${month}月${day}日なので${expanded}で${position}枚目」${directionTag}`);
+      }
 
       return matches;
     }
@@ -643,6 +655,7 @@
       }
 
       const next = new Date(now.getTime() + waitSeconds * 1000);
+      const year = next.getFullYear();
       const month = next.getMonth() + 1;
       const day = next.getDate();
       const hour24 = next.getHours();
@@ -665,19 +678,7 @@
       if (hour24 + minute === position && hour24 !== hour12) {
         hints.push(`「あと${waitSeconds}秒で${hour24}時${minute}分。足して${position}枚目」${directionTag}${pendingSuffix}`);
       }
-      if (day === position) {
-        hints.push(`「あと${waitSeconds}秒で日付が${day}日。${position}枚目」${directionTag}`);
-      }
-      const monthDayConcat = Number(`${month}${day}`);
-      if (monthDayConcat === position) {
-        hints.push(`「あと${waitSeconds}秒で${month}月${day}日。${position}枚目」${directionTag}`);
-      } else {
-        const monthDayDigitSum = sumDigits(monthDayConcat);
-        if (monthDayDigitSum === position) {
-          const expanded = `${String(monthDayConcat).split("").join("＋")}`;
-          hints.push(`「あと${waitSeconds}秒で${month}月${day}日。${expanded}で${position}枚目」${directionTag}`);
-        }
-      }
+      // 30秒予告は時刻系のみを対象にする（日付系は実戦上ほぼ変化しないため除外）
 
       return hints;
     }
