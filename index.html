@@ -187,6 +187,12 @@
     const PRESET_STORAGE_KEY = "trump-cut-app-preset-v1";
 
     const SUIT_LIST = ["S", "H", "D", "C"];
+    const SUIT_SYMBOLS = {
+      S: "♠",
+      H: "♥",
+      D: "♦",
+      C: "♣"
+    };
     const RANK_LIST = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
     const SUITS = new Set(SUIT_LIST);
     const RANKS = new Set(RANK_LIST);
@@ -315,12 +321,12 @@
       outputEl.value = `${suitEl.value}-${rankEl.value}`;
     }
 
-    function fillSelect(selectEl, values) {
+    function fillSelect(selectEl, values, labels = null) {
       selectEl.innerHTML = "";
       for (const value of values) {
         const option = document.createElement("option");
         option.value = value;
-        option.textContent = value;
+        option.textContent = labels && labels[value] ? labels[value] : value;
         selectEl.appendChild(option);
       }
     }
@@ -417,8 +423,8 @@
     }
 
     fillPresetSelect();
-    fillSelect(bottomSuit, SUIT_LIST);
-    fillSelect(targetSuit, SUIT_LIST);
+    fillSelect(bottomSuit, SUIT_LIST, SUIT_SYMBOLS);
+    fillSelect(targetSuit, SUIT_LIST, SUIT_SYMBOLS);
     fillSelect(bottomRank, RANK_LIST);
     fillSelect(targetRank, RANK_LIST);
     loadDeck();
