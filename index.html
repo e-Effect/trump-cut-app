@@ -222,6 +222,9 @@
       margin-top: 10px;
       flex-wrap: wrap;
     }
+    .import-input {
+      display: none;
+    }
     .settings-btn {
       width: 42px;
       height: 42px;
@@ -340,6 +343,9 @@
         <div class="settings-actions">
           <button id="savePhrasesBtn" type="button">フレーズを保存</button>
           <button id="clearPhrasesBtn" type="button">フレーズを全消去</button>
+          <button id="exportPhrasesBtn" type="button">JSONエクスポート</button>
+          <button id="importPhrasesBtn" type="button">JSONインポート</button>
+          <input id="importPhrasesFile" class="import-input" type="file" accept="application/json,.json" />
         </div>
       </section>
     </div>
@@ -364,6 +370,9 @@
     const phraseGrid = document.getElementById("phraseGrid");
     const savePhrasesBtn = document.getElementById("savePhrasesBtn");
     const clearPhrasesBtn = document.getElementById("clearPhrasesBtn");
+    const exportPhrasesBtn = document.getElementById("exportPhrasesBtn");
+    const importPhrasesBtn = document.getElementById("importPhrasesBtn");
+    const importPhrasesFile = document.getElementById("importPhrasesFile");
     const resultEl = document.getElementById("result");
     const basePanelEl = document.getElementById("basePanel");
     const phrasePanelEl = document.getElementById("phrasePanel");
@@ -684,6 +693,57 @@
       render();
     }
 
+    function collectPhrasesFromInputs() {
+      const phrases = {};
+      for (const input of getPhraseInputs()) {
+        const text = input.value.trim();
+        if (text) {
+          phrases[input.dataset.position] = text;
+        }
+      }
+      return phrases;
+    }
+
+    function exportPhrases() {
+      const phrases = collectPhrasesFromInputs();
+      const payload = {
+        app: "True Cut",
+        type: "phrase-settings",
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        phrases
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+      a.href = url;
+      a.download = `true-cut-phrases-${stamp}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function importPhrasesFromObject(data) {
+      const source = data && typeof data === "object" ? data.phrases || data : {};
+      if (!source || typeof source !== "object") {
+        throw new Error("JSONの形式が正しくありません");
+      }
+
+      const normalized = {};
+      for (let i = 1; i <= 52; i += 1) {
+        const key = String(i);
+        const value = source[key];
+        if (typeof value === "string" && value.trim()) {
+          normalized[key] = value.trim();
+        }
+      }
+      localStorage.setItem(PHRASE_STORAGE_KEY, JSON.stringify(normalized));
+      applyPhrasesToInputs();
+      render();
+    }
+
     function loadPhrases() {
       const raw = localStorage.getItem(PHRASE_STORAGE_KEY);
       if (!raw) {
@@ -856,6 +916,25 @@
       }
       localStorage.removeItem(PHRASE_STORAGE_KEY);
       render();
+    });
+    exportPhrasesBtn.addEventListener("click", exportPhrases);
+    importPhrasesBtn.addEventListener("click", () => {
+      importPhrasesFile.click();
+    });
+    importPhrasesFile.addEventListener("change", async (event) => {
+      const file = event.target.files && event.target.files[0];
+      if (!file) {
+        return;
+      }
+      try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        importPhrasesFromObject(data);
+      } catch {
+        alert("JSONの読み込みに失敗しました。ファイル内容を確認してください。");
+      } finally {
+        importPhrasesFile.value = "";
+      }
     });
     openSettingsBtn.addEventListener("click", openSettings);
     closeSettingsBtn.addEventListener("click", closeSettings);
