@@ -263,6 +263,19 @@
       line-height: 1;
       padding: 0;
     }
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .refresh-btn {
+      min-width: 64px;
+      height: 42px;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      padding: 0 12px;
+    }
     button {
       border: 1px solid #cbd5e1;
       background: #ffffff;
@@ -320,10 +333,13 @@
 </head>
 <body>
   <main class="container">
-    <div class="version">Version v1.0.10</div>
+    <div class="version">Version v1.0.11</div>
     <div class="header">
       <h1>True Cut</h1>
-      <button id="openSettingsBtn" class="settings-btn" type="button" aria-label="設定">⚙</button>
+      <div class="header-actions">
+        <button id="refreshBtn" class="refresh-btn" type="button" aria-label="更新">更新</button>
+        <button id="openSettingsBtn" class="settings-btn" type="button" aria-label="設定">⚙</button>
+      </div>
     </div>
 
     <section class="grid">
@@ -394,6 +410,7 @@
     const targetRankButtons2 = document.getElementById("targetRankButtons2");
     const targetRankButtons3 = document.getElementById("targetRankButtons3");
     const openSettingsBtn = document.getElementById("openSettingsBtn");
+    const refreshBtn = document.getElementById("refreshBtn");
     const closeSettingsBtn = document.getElementById("closeSettingsBtn");
     const settingsModal = document.getElementById("settingsModal");
     const phraseGrid = document.getElementById("phraseGrid");
@@ -1152,6 +1169,11 @@
       }
     });
     openSettingsBtn.addEventListener("click", openSettings);
+    refreshBtn.addEventListener("click", () => {
+      const url = new URL(window.location.href);
+      url.searchParams.set("v", String(Date.now()));
+      window.location.replace(url.toString());
+    });
     closeSettingsBtn.addEventListener("click", closeSettings);
     settingsModal.addEventListener("click", (event) => {
       if (event.target === settingsModal) {
