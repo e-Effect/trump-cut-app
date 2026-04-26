@@ -27,6 +27,16 @@
       margin: 0 0 16px 0;
       font-size: 1.4rem;
     }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .header h1 {
+      margin: 0;
+    }
     .grid {
       display: grid;
       gap: 14px;
@@ -69,6 +79,7 @@
       border: 1px solid #c7d2fe;
       font-weight: 700;
       color: #312e81;
+      white-space: pre-line;
     }
     .error {
       margin-top: 8px;
@@ -87,7 +98,6 @@
       line-height: 1.5;
     }
     .settings {
-      margin-top: 8px;
       border: 1px solid #e5e7eb;
       border-radius: 8px;
       padding: 12px;
@@ -120,6 +130,14 @@
       margin-top: 10px;
       flex-wrap: wrap;
     }
+    .settings-btn {
+      width: 42px;
+      height: 42px;
+      border-radius: 999px;
+      font-size: 1.2rem;
+      line-height: 1;
+      padding: 0;
+    }
     button {
       border: 1px solid #cbd5e1;
       background: #ffffff;
@@ -130,6 +148,40 @@
     }
     button:hover {
       background: #f3f4f6;
+    }
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(17, 24, 39, 0.45);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      z-index: 999;
+    }
+    .modal-backdrop.show {
+      display: flex;
+    }
+    .modal-card {
+      width: min(760px, 100%);
+      max-height: 88vh;
+      overflow: auto;
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 14px;
+      box-shadow: 0 16px 40px rgba(17, 24, 39, 0.25);
+    }
+    .modal-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .modal-head h2 {
+      margin: 0;
+      font-size: 1.05rem;
     }
     @media (max-width: 700px) {
       .row {
@@ -143,7 +195,10 @@
 </head>
 <body>
   <main class="container">
-    <h1>トランプ カット位置計算アプリ</h1>
+    <div class="header">
+      <h1>トランプ カット位置計算アプリ</h1>
+      <button id="openSettingsBtn" class="settings-btn" type="button" aria-label="設定">⚙</button>
+    </div>
 
     <section class="grid">
       <p class="hint">現在の配列は Mnemonica 固定です。</p>
@@ -169,9 +224,16 @@
 
       <div id="result" class="result">ここに結果が表示されます</div>
       <div id="error" class="error" style="display:none;"></div>
+    </section>
+  </main>
 
-      <section class="settings">
+  <div id="settingsModal" class="modal-backdrop" aria-hidden="true">
+    <div class="modal-card">
+      <div class="modal-head">
         <h2>演出フレーズ設定（1〜52枚目）</h2>
+        <button id="closeSettingsBtn" type="button">閉じる</button>
+      </div>
+      <section class="settings">
         <p class="hint">各枚数に対して表示したいフレーズを設定できます。未設定なら枚数のみ表示します。</p>
         <div id="phraseGrid" class="phrase-grid"></div>
         <div class="settings-actions">
@@ -179,8 +241,8 @@
           <button id="clearPhrasesBtn" type="button">フレーズを全消去</button>
         </div>
       </section>
-    </section>
-  </main>
+    </div>
+  </div>
 
   <script>
     const bottomCardInput = document.getElementById("bottomCard");
@@ -189,6 +251,9 @@
     const bottomRank = document.getElementById("bottomRank");
     const targetSuit = document.getElementById("targetSuit");
     const targetRank = document.getElementById("targetRank");
+    const openSettingsBtn = document.getElementById("openSettingsBtn");
+    const closeSettingsBtn = document.getElementById("closeSettingsBtn");
+    const settingsModal = document.getElementById("settingsModal");
     const phraseGrid = document.getElementById("phraseGrid");
     const savePhrasesBtn = document.getElementById("savePhrasesBtn");
     const clearPhrasesBtn = document.getElementById("clearPhrasesBtn");
@@ -281,6 +346,51 @@
       return `${SUIT_SYMBOLS[suit]}${rank}`;
     }
 
+    function sumDigits(numberValue) {
+      return String(numberValue)
+        .split("")
+        .map((ch) => Number(ch))
+        .reduce((acc, cur) => acc + cur, 0);
+    }
+
+    function getLuckyPatternMatches(position) {
+      const now = new Date();
+      const month = now.getMonth() + 1;
+      const day = now.getDate();
+      const hour24 = now.getHours();
+      const minute = now.getMinutes();
+      const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
+      const matches = [];
+
+      if (minute === position) {
+        matches.push(`時刻一致: 今は ${hour24}:${String(minute).padStart(2, "0")}（${minute}分）`);
+      }
+
+      if (hour12 === position) {
+        matches.push(`時一致: 今は ${hour12}時台`);
+      }
+
+      if (hour24 + minute === position) {
+        matches.push(`時刻の和一致: ${hour24}+${minute}=${position}`);
+      }
+
+      if (day === position) {
+        matches.push(`日付一致: 今日は ${day}日`);
+      }
+
+      const monthDayConcat = Number(`${month}${day}`);
+      if (monthDayConcat === position) {
+        matches.push(`月日連結一致: ${month}/${day} → ${monthDayConcat}`);
+      } else {
+        const monthDayDigitSum = sumDigits(monthDayConcat);
+        if (monthDayDigitSum === position) {
+          matches.push(`月日連結の桁和一致: ${month}/${day} → ${monthDayConcat} → ${monthDayDigitSum}`);
+        }
+      }
+
+      return matches;
+    }
+
     function buildPhraseInputs() {
       phraseGrid.innerHTML = "";
       for (let i = 1; i <= 52; i += 1) {
@@ -370,11 +480,22 @@
       }
       const phrases = loadPhrases();
       const phrase = phrases[String(calc.position)];
-      if (phrase) {
-        resultEl.textContent = `${formatCardForDisplay(target)} は上から ${calc.position} 枚目。フレーズ: 「${phrase}」`;
-      } else {
-        resultEl.textContent = `${formatCardForDisplay(target)} は上から ${calc.position} 枚目です`;
-      }
+      const luckyMatches = getLuckyPatternMatches(calc.position);
+
+      const line1 = `${formatCardForDisplay(target)} は上から ${calc.position} 枚目です`;
+      const line2 = `フレーズ: ${phrase ? `「${phrase}」` : "未設定"}`;
+      const line3 = `ラッキーパターン: ${luckyMatches.length > 0 ? luckyMatches.join(" / ") : "該当なし"}`;
+      resultEl.textContent = `${line1}\n${line2}\n${line3}`;
+    }
+
+    function openSettings() {
+      settingsModal.classList.add("show");
+      settingsModal.setAttribute("aria-hidden", "false");
+    }
+
+    function closeSettings() {
+      settingsModal.classList.remove("show");
+      settingsModal.setAttribute("aria-hidden", "true");
     }
 
     buildPhraseInputs();
@@ -418,6 +539,13 @@
       }
       localStorage.removeItem(PHRASE_STORAGE_KEY);
       render();
+    });
+    openSettingsBtn.addEventListener("click", openSettings);
+    closeSettingsBtn.addEventListener("click", closeSettings);
+    settingsModal.addEventListener("click", (event) => {
+      if (event.target === settingsModal) {
+        closeSettings();
+      }
     });
 
     render();
