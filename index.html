@@ -201,38 +201,39 @@
     }
     .phrase-grid {
       display: grid;
-      grid-template-columns: 72px 1fr 118px 56px;
+      grid-template-columns: 52px 1fr 78px 22px;
       gap: 8px;
       max-height: 320px;
       overflow: auto;
       padding-right: 4px;
     }
     .phrase-label {
-      font-size: 0.86rem;
+      font-size: 0.82rem;
       color: #374151;
       align-self: center;
+      white-space: nowrap;
     }
     .phrase-input {
-      font-size: 0.9rem;
-      padding: 8px 10px;
+      font-size: 0.95rem;
+      padding: 10px 10px;
     }
     .phrase-select {
-      font-size: 0.86rem;
-      padding: 8px 8px;
+      font-size: 0.82rem;
+      padding: 8px 6px;
       border: 1px solid #d1d5db;
       border-radius: 8px;
       background: #fff;
     }
     .auto-badge {
       align-self: center;
-      justify-self: start;
-      font-size: 0.75rem;
+      justify-self: center;
+      font-size: 0.64rem;
       font-weight: 700;
       color: #065f46;
       background: #d1fae5;
       border: 1px solid #6ee7b7;
       border-radius: 999px;
-      padding: 2px 7px;
+      padding: 1px 4px;
       display: inline-block;
       visibility: hidden;
     }
@@ -310,7 +311,7 @@
 </head>
 <body>
   <main class="container">
-    <div class="version">Version v1.0.3</div>
+    <div class="version">Version v1.0.4</div>
     <div class="header">
       <h1>True Cut</h1>
       <button id="openSettingsBtn" class="settings-btn" type="button" aria-label="設定">⚙</button>
@@ -699,16 +700,16 @@
         select.id = `phrase-orientation-${i}`;
         const optionBack = document.createElement("option");
         optionBack.value = "back";
-        optionBack.textContent = "うら向き";
+        optionBack.textContent = "うら";
         const optionFront = document.createElement("option");
         optionFront.value = "front";
-        optionFront.textContent = "おもて向き";
+        optionFront.textContent = "おもて";
         select.appendChild(optionBack);
         select.appendChild(optionFront);
 
         const autoBadge = document.createElement("div");
         autoBadge.className = "auto-badge";
-        autoBadge.textContent = "自動";
+        autoBadge.textContent = "自";
         autoBadge.dataset.position = String(i);
         autoBadge.id = `phrase-auto-${i}`;
 
