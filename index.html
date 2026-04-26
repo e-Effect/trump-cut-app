@@ -193,6 +193,12 @@
       D: "♦",
       C: "♣"
     };
+    const SUIT_COLORS = {
+      S: "#111827",
+      C: "#111827",
+      H: "#dc2626",
+      D: "#dc2626"
+    };
     const RANK_LIST = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
     const SUITS = new Set(SUIT_LIST);
     const RANKS = new Set(RANK_LIST);
@@ -327,8 +333,17 @@
         const option = document.createElement("option");
         option.value = value;
         option.textContent = labels && labels[value] ? labels[value] : value;
+        if (SUIT_COLORS[value]) {
+          option.style.color = SUIT_COLORS[value];
+        }
         selectEl.appendChild(option);
       }
+    }
+
+    function updateSuitSelectColor(selectEl) {
+      const color = SUIT_COLORS[selectEl.value] || "#111827";
+      selectEl.style.color = color;
+      selectEl.style.fontWeight = "700";
     }
 
     function saveDeck() {
@@ -433,12 +448,15 @@
     bottomRank.value = "K";
     targetSuit.value = "S";
     targetRank.value = "A";
+    updateSuitSelectColor(bottomSuit);
+    updateSuitSelectColor(targetSuit);
     setCardFromSelects(bottomSuit, bottomRank, bottomCardInput);
     setCardFromSelects(targetSuit, targetRank, targetCardInput);
 
     deckInput.addEventListener("input", render);
     stackPreset.addEventListener("change", () => applyPreset(stackPreset.value));
     bottomSuit.addEventListener("change", () => {
+      updateSuitSelectColor(bottomSuit);
       setCardFromSelects(bottomSuit, bottomRank, bottomCardInput);
       render();
     });
@@ -447,6 +465,7 @@
       render();
     });
     targetSuit.addEventListener("change", () => {
+      updateSuitSelectColor(targetSuit);
       setCardFromSelects(targetSuit, targetRank, targetCardInput);
       render();
     });
