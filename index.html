@@ -233,7 +233,8 @@
       border: 1px solid #6ee7b7;
       border-radius: 999px;
       padding: 2px 7px;
-      display: none;
+      display: inline-block;
+      visibility: hidden;
     }
     .settings-actions {
       display: flex;
@@ -309,7 +310,7 @@
 </head>
 <body>
   <main class="container">
-    <div class="version">Version v1.0.1</div>
+    <div class="version">Version v1.0.3</div>
     <div class="header">
       <h1>True Cut</h1>
       <button id="openSettingsBtn" class="settings-btn" type="button" aria-label="設定">⚙</button>
@@ -856,7 +857,7 @@
         }
         const badge = document.getElementById(`phrase-auto-${key}`);
         if (badge) {
-          badge.style.display = entry.autoFrom ? "inline-block" : "none";
+          badge.style.visibility = entry.autoFrom ? "visible" : "hidden";
         }
       }
     }
@@ -884,17 +885,17 @@
         mirrorInput.value = sourceText;
         mirrorInput.dataset.autoFrom = String(sourcePos);
         mirrorSelect.value = sourceSelect.value === "back" ? "front" : "back";
-        mirrorBadge.style.display = "inline-block";
+        mirrorBadge.style.visibility = "visible";
       } else if (mirrorAutoFrom === sourcePos && !sourceText) {
         mirrorInput.value = "";
         mirrorInput.dataset.autoFrom = "";
         mirrorSelect.value = "back";
-        mirrorBadge.style.display = "none";
+        mirrorBadge.style.visibility = "hidden";
       }
 
       const sourceBadge = document.getElementById(`phrase-auto-${sourcePos}`);
       if (sourceBadge) {
-        sourceBadge.style.display = "none";
+        sourceBadge.style.visibility = "hidden";
       }
     }
 
@@ -904,7 +905,7 @@
       if (input && input.dataset.autoFrom) {
         input.dataset.autoFrom = "";
         if (badge) {
-          badge.style.display = "none";
+          badge.style.visibility = "hidden";
         }
       }
     }
@@ -1080,6 +1081,10 @@
     syncCardPickers();
     savePhrasesBtn.addEventListener("click", savePhrases);
     clearPhrasesBtn.addEventListener("click", () => {
+      const ok = confirm("フレーズ設定をすべて削除します。よろしいですか？");
+      if (!ok) {
+        return;
+      }
       for (const input of getPhraseInputs()) {
         input.value = "";
         input.dataset.autoFrom = "";
@@ -1090,7 +1095,7 @@
       for (let i = 1; i <= 52; i += 1) {
         const badge = document.getElementById(`phrase-auto-${i}`);
         if (badge) {
-          badge.style.display = "none";
+          badge.style.visibility = "hidden";
         }
       }
       localStorage.removeItem(PHRASE_STORAGE_KEY);
