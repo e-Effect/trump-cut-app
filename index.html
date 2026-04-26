@@ -173,6 +173,15 @@
       border-color: #86efac;
       color: #166534;
     }
+    .spell-list {
+      margin-top: 8px;
+      display: none;
+      gap: 8px;
+      flex-direction: column;
+    }
+    .spell-item {
+      margin-top: 0;
+    }
     .error {
       margin-top: 8px;
       padding: 12px;
@@ -311,7 +320,7 @@
 </head>
 <body>
   <main class="container">
-    <div class="version">Version v1.0.9</div>
+    <div class="version">Version v1.0.10</div>
     <div class="header">
       <h1>True Cut</h1>
       <button id="openSettingsBtn" class="settings-btn" type="button" aria-label="設定">⚙</button>
@@ -344,7 +353,7 @@
       </div>
 
       <div id="luckyPanel" class="panel panel-lucky" style="display:none;"></div>
-      <div id="spellPanel" class="panel panel-spell" style="display:none;"></div>
+      <div id="spellList" class="spell-list"></div>
       <div id="phrasePanel" class="panel panel-phrase" style="display:none;"></div>
       <div id="basePanel" class="result result-small"></div>
       <div id="error" class="error" style="display:none;"></div>
@@ -396,7 +405,7 @@
     const basePanelEl = document.getElementById("basePanel");
     const phrasePanelEl = document.getElementById("phrasePanel");
     const luckyPanelEl = document.getElementById("luckyPanel");
-    const spellPanelEl = document.getElementById("spellPanel");
+    const spellListEl = document.getElementById("spellList");
     const errorEl = document.getElementById("error");
 
     const SUIT_LIST = ["S", "H", "D", "C"];
@@ -499,7 +508,8 @@
       phrasePanelEl.textContent = "";
       phrasePanelEl.style.display = "none";
       luckyPanelEl.style.display = "none";
-      spellPanelEl.style.display = "none";
+      spellListEl.style.display = "none";
+      spellListEl.innerHTML = "";
     }
 
     function clearError() {
@@ -998,7 +1008,8 @@
       if (!bottom || !target) {
         basePanelEl.textContent = "ボトムカードと選ばれたカードを選んでください";
         luckyPanelEl.style.display = "none";
-        spellPanelEl.style.display = "none";
+        spellListEl.style.display = "none";
+        spellListEl.innerHTML = "";
         phrasePanelEl.style.display = "none";
         phrasePanelEl.textContent = "";
         return;
@@ -1042,11 +1053,17 @@
       }
 
       if (spellMatches.length > 0) {
-        spellPanelEl.style.display = "block";
-        spellPanelEl.textContent = spellMatches.join("\n");
+        spellListEl.style.display = "flex";
+        spellListEl.innerHTML = "";
+        for (const match of spellMatches) {
+          const item = document.createElement("div");
+          item.className = "panel panel-spell spell-item";
+          item.textContent = match;
+          spellListEl.appendChild(item);
+        }
       } else {
-        spellPanelEl.style.display = "none";
-        spellPanelEl.textContent = "";
+        spellListEl.style.display = "none";
+        spellListEl.innerHTML = "";
       }
 
       if (phrase) {
