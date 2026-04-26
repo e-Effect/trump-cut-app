@@ -311,7 +311,7 @@
 </head>
 <body>
   <main class="container">
-    <div class="version">Version v1.0.5</div>
+    <div class="version">Version v1.0.9</div>
     <div class="header">
       <h1>True Cut</h1>
       <button id="openSettingsBtn" class="settings-btn" type="button" aria-label="設定">⚙</button>
@@ -650,11 +650,12 @@
       const dedupe = new Set();
 
       // パターン1: 「スートのランク」を文字どおり配る（"の"は必須）
+      // position は「その向きでの何枚目」か（裏=上から数えた枚数、表=表向き換算）
       for (const suitWord of suitReadings) {
         for (const rankWord of rankReadings) {
           const phrase = `${suitWord}の${rankWord}`;
           if (phrase.length === position) {
-            const msg = `「${phrase}」と文字どおり配る${directionTag}`;
+            const msg = `「${phrase}」と文字どおり配る（${position}枚目）${directionTag}`;
             if (!dedupe.has(msg)) {
               dedupe.add(msg);
               matches.push(msg);
@@ -663,14 +664,26 @@
         }
       }
 
-      // パターン2: 「スート名 + 数値枚数で配る」
-      if (rankNumber === position) {
-        for (const suitWord of suitReadings) {
-          const msg = `「${suitWord}＋${rankNumber}枚配る」${directionTag}`;
+      // パターン2: 「スート名＋ランク枚配る」→ 実際に配る枚数は（スート読みの文字数 + ランク）
+      // 例: スペード(4文字)＋7 → 11枚。ランクそのもの枚ではない。
+      for (const suitWord of suitReadings) {
+        const dealCount = suitWord.length + rankNumber;
+        if (dealCount === position) {
+          const msg = `「${suitWord}＋${rankNumber}枚配る（${suitWord.length}＋${rankNumber}＝${dealCount}枚）${directionTag}`;
           if (!dedupe.has(msg)) {
             dedupe.add(msg);
             matches.push(msg);
           }
+        }
+      }
+
+      // パターン3: 「カードの数字そのもの」が枚数に一致
+      // 例: ♣5 が 5枚目なら「♣の5なので5枚目のカード」。
+      if (rankNumber === position) {
+        const msg = `「${SUIT_SYMBOLS[suit]}の${rank}なので${position}枚目のカード」${directionTag}`;
+        if (!dedupe.has(msg)) {
+          dedupe.add(msg);
+          matches.push(msg);
         }
       }
 
@@ -1019,10 +1032,10 @@
 
       if (luckyMatches.length > 0) {
         luckyPanelEl.style.display = "block";
-        luckyPanelEl.textContent = `最優先（ラッキーパターン）\n${luckyMatches.join("\n")}`;
+        luckyPanelEl.textContent = luckyMatches.join("\n");
       } else if (upcomingHints.length > 0) {
         luckyPanelEl.style.display = "block";
-        luckyPanelEl.textContent = `最優先（ラッキーパターン予告）\n${upcomingHints.join("\n")}`;
+        luckyPanelEl.textContent = upcomingHints.join("\n");
       } else {
         luckyPanelEl.style.display = "none";
         luckyPanelEl.textContent = "";
@@ -1030,7 +1043,7 @@
 
       if (spellMatches.length > 0) {
         spellPanelEl.style.display = "block";
-        spellPanelEl.textContent = `予備案（スペルパターン）\n${spellMatches.join("\n")}`;
+        spellPanelEl.textContent = spellMatches.join("\n");
       } else {
         spellPanelEl.style.display = "none";
         spellPanelEl.textContent = "";
@@ -1039,7 +1052,7 @@
       if (phrase) {
         phrasePanelEl.style.display = "block";
         const orient = phraseEntry.orientation === "front" ? "【おもて向き】" : "【うら向き】";
-        phrasePanelEl.textContent = `保険（事前フレーズ）\n「${phrase}」${orient}`;
+        phrasePanelEl.textContent = `「${phrase}」${orient}`;
       } else {
         phrasePanelEl.style.display = "none";
         phrasePanelEl.textContent = "";
