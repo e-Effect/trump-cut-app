@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>トランプ カット位置計算</title>
+  <style>
+    :root {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: #111827;
+      background: #f9fafb;
+    }
+    body {
+      margin: 0;
+      padding: 24px;
+    }
+    .container {
+      max-width: 860px;
+      margin: 0 auto;
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 8px 24px rgba(17, 24, 39, 0.08);
+    }
+    h1 {
+      margin: 0 0 16px 0;
+      font-size: 1.4rem;
+    }
+    .grid {
+      display: grid;
+      gap: 14px;
+    }
+    label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 6px;
+      font-size: 0.95rem;
+    }
+    textarea, input, select {
+      width: 100%;
+      box-sizing: border-box;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 0.95rem;
+      background: #ffffff;
+    }
+    textarea {
+      min-height: 190px;
+      resize: vertical;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .row3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+    }
+    .toolbar {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    button {
+      border: 1px solid #cbd5e1;
+      background: #f8fafc;
+      color: #0f172a;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #f1f5f9;
+    }
+    .result {
+      margin-top: 8px;
+      padding: 14px;
+      border-radius: 8px;
+      background: #eef2ff;
+      border: 1px solid #c7d2fe;
+      font-weight: 700;
+      color: #312e81;
+    }
+    .error {
+      margin-top: 8px;
+      padding: 12px;
+      border-radius: 8px;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      color: #991b1b;
+      font-size: 0.9rem;
+      white-space: pre-wrap;
+    }
+    .hint {
+      font-size: 0.84rem;
+      color: #4b5563;
+      margin-top: 4px;
+      line-height: 1.5;
+    }
+    .small {
+      font-size: 0.82rem;
+      color: #6b7280;
+    }
+    @media (max-width: 700px) {
+      .row {
+        grid-template-columns: 1fr;
+      }
+      .row3 {
+        grid-template-columns: 1fr;
+      }
+      button {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <h1>トランプ カット位置計算アプリ</h1>
+
+    <section class="grid">
+      <div>
+        <label for="deckInput">52枚の初期配列（上→下、1行1枚）</label>
+        <textarea id="deckInput"></textarea>
+        <div class="toolbar">
+          <button id="saveDeckBtn" type="button">この並びを保存</button>
+          <button id="resetDeckBtn" type="button">標準順に戻す</button>
+        </div>
+        <p class="hint">
+          入力形式は <code>S-A</code>, <code>H-10</code>, <code>D-Q</code>, <code>C-7</code> のようにしてください。<br />
+          マーク: S, H, D, C / 数字: A,2..10,J,Q,K
+        </p>
+        <p id="saveStatus" class="small"></p>
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="bottomSuit">カット後の一番下カード</label>
+          <div class="row3">
+            <select id="bottomSuit"></select>
+            <select id="bottomRank"></select>
+            <input id="bottomCard" type="text" readonly />
+          </div>
+        </div>
+        <div>
+          <label for="targetSuit">探したいカード</label>
+          <div class="row3">
+            <select id="targetSuit"></select>
+            <select id="targetRank"></select>
+            <input id="targetCard" type="text" readonly />
+          </div>
+        </div>
+      </div>
+
+      <div id="result" class="result">ここに結果が表示されます</div>
+      <div id="error" class="error" style="display:none;"></div>
+    </section>
+  </main>
+
+  <script>
+    const deckInput = document.getElementById("deckInput");
+    const bottomCardInput = document.getElementById("bottomCard");
+    const targetCardInput = document.getElementById("targetCard");
+    const bottomSuit = document.getElementById("bottomSuit");
+    const bottomRank = document.getElementById("bottomRank");
+    const targetSuit = document.getElementById("targetSuit");
+    const targetRank = document.getElementById("targetRank");
+    const saveDeckBtn = document.getElementById("saveDeckBtn");
+    const resetDeckBtn = document.getElementById("resetDeckBtn");
+    const saveStatus = document.getElementById("saveStatus");
+    const resultEl = document.getElementById("result");
+    const errorEl = document.getElementById("error");
+    const STORAGE_KEY = "trump-cut-app-deck-v1";
+
+    const SUIT_LIST = ["S", "H", "D", "C"];
+    const RANK_LIST = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
+    const SUITS = new Set(SUIT_LIST);
+    const RANKS = new Set(RANK_LIST);
+
+    function defaultDeck() {
+      const lines = [];
+      for (const s of SUIT_LIST) {
+        for (const r of RANK_LIST) {
+          lines.push(`${s}-${r}`);
+        }
+      }
+      return lines.join("\n");
+    }
+
+    function normalizeCard(raw) {
+      const value = (raw || "").trim().toUpperCase();
+      const match = value.match(/^([SHDC])[-\s]?([A2-9]|10|J|Q|K)$/);
+      if (!match) {
+        return null;
+      }
+      const suit = match[1];
+      const rank = match[2];
+      if (!SUITS.has(suit) || !RANKS.has(rank)) {
+        return null;
+      }
+      return `${suit}-${rank}`;
+    }
+
+    function parseDeck(text) {
+      const lines = text
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0);
+
+      if (lines.length !== 52) {
+        return { error: `初期配列は52枚必要です。現在: ${lines.length}枚` };
+      }
+
+      const normalized = [];
+      const seen = new Set();
+      for (const line of lines) {
+        const card = normalizeCard(line);
+        if (!card) {
+          return { error: `不正なカード表記があります: ${line}` };
+        }
+        if (seen.has(card)) {
+          return { error: `重複カードがあります: ${card}` };
+        }
+        seen.add(card);
+        normalized.push(card);
+      }
+      return { deck: normalized };
+    }
+
+    function calculatePosition(deck, bottomCard, targetCard) {
+      const indexMap = new Map(deck.map((card, idx) => [card, idx]));
+      if (!indexMap.has(bottomCard)) {
+        return { error: `一番下カード ${bottomCard} は初期配列に存在しません。` };
+      }
+      if (!indexMap.has(targetCard)) {
+        return { error: `探したいカード ${targetCard} は初期配列に存在しません。` };
+      }
+
+      const b = indexMap.get(bottomCard);
+      const t = indexMap.get(targetCard);
+      const position = ((t - b - 1 + 52) % 52) + 1;
+      return { position };
+    }
+
+    function showError(message) {
+      errorEl.style.display = "block";
+      errorEl.textContent = message;
+      resultEl.textContent = "計算できません";
+    }
+
+    function clearError() {
+      errorEl.style.display = "none";
+      errorEl.textContent = "";
+    }
+
+    function setCardFromSelects(suitEl, rankEl, outputEl) {
+      outputEl.value = `${suitEl.value}-${rankEl.value}`;
+    }
+
+    function fillSelect(selectEl, values) {
+      selectEl.innerHTML = "";
+      for (const value of values) {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = value;
+        selectEl.appendChild(option);
+      }
+    }
+
+    function saveDeck() {
+      const parsedDeck = parseDeck(deckInput.value);
+      if (parsedDeck.error) {
+        showError(parsedDeck.error);
+        saveStatus.textContent = "";
+        return;
+      }
+      localStorage.setItem(STORAGE_KEY, parsedDeck.deck.join("\n"));
+      saveStatus.textContent = "保存しました（この端末で次回も自動読込）";
+    }
+
+    function loadDeck() {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved && parseDeck(saved).deck) {
+        deckInput.value = saved;
+        saveStatus.textContent = "保存済みの並びを読み込みました";
+      } else {
+        deckInput.value = defaultDeck();
+      }
+    }
+
+    function render() {
+      clearError();
+
+      const parsedDeck = parseDeck(deckInput.value);
+      if (parsedDeck.error) {
+        showError(parsedDeck.error);
+        return;
+      }
+
+      const bottom = normalizeCard(bottomCardInput.value);
+      const target = normalizeCard(targetCardInput.value);
+
+      if (!bottom || !target) {
+        resultEl.textContent = "一番下カードと探したいカードを入力してください";
+        return;
+      }
+
+      const calc = calculatePosition(parsedDeck.deck, bottom, target);
+      if (calc.error) {
+        showError(calc.error);
+        return;
+      }
+
+      resultEl.textContent = `${target} は上から ${calc.position} 枚目です`;
+    }
+
+    fillSelect(bottomSuit, SUIT_LIST);
+    fillSelect(targetSuit, SUIT_LIST);
+    fillSelect(bottomRank, RANK_LIST);
+    fillSelect(targetRank, RANK_LIST);
+    loadDeck();
+
+    bottomSuit.value = "C";
+    bottomRank.value = "K";
+    targetSuit.value = "S";
+    targetRank.value = "A";
+    setCardFromSelects(bottomSuit, bottomRank, bottomCardInput);
+    setCardFromSelects(targetSuit, targetRank, targetCardInput);
+
+    deckInput.addEventListener("input", render);
+    bottomSuit.addEventListener("change", () => {
+      setCardFromSelects(bottomSuit, bottomRank, bottomCardInput);
+      render();
+    });
+    bottomRank.addEventListener("change", () => {
+      setCardFromSelects(bottomSuit, bottomRank, bottomCardInput);
+      render();
+    });
+    targetSuit.addEventListener("change", () => {
+      setCardFromSelects(targetSuit, targetRank, targetCardInput);
+      render();
+    });
+    targetRank.addEventListener("change", () => {
+      setCardFromSelects(targetSuit, targetRank, targetCardInput);
+      render();
+    });
+    saveDeckBtn.addEventListener("click", saveDeck);
+    resetDeckBtn.addEventListener("click", () => {
+      deckInput.value = defaultDeck();
+      saveStatus.textContent = "標準順に戻しました";
+      clearError();
+      render();
+    });
+
+    render();
+  </script>
+</body>
+</html>
