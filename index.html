@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>トランプ カット位置計算</title>
+  <title>True Cut</title>
   <style>
     :root {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -89,18 +89,28 @@
       flex-wrap: wrap;
       margin-bottom: 6px;
     }
+    .picker-row.suit-row {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+    }
     .picker-row:last-child {
       margin-bottom: 0;
     }
     .pick-btn {
-      min-width: 40px;
+      min-width: 52px;
       border: 1px solid #cbd5e1;
       border-radius: 8px;
       background: #f8fafc;
-      padding: 6px 8px;
-      font-size: 0.9rem;
+      padding: 10px 12px;
+      font-size: 1rem;
       font-weight: 700;
       cursor: pointer;
+    }
+    .pick-btn.suit-btn {
+      min-height: 52px;
+      font-size: 1.45rem;
+      padding: 10px 0;
     }
     .pick-btn.active {
       background: #e0e7ff;
@@ -279,18 +289,16 @@
   <main class="container">
     <div class="version">Version v1.0.0</div>
     <div class="header">
-      <h1>トランプ カット位置計算アプリ</h1>
+      <h1>True Cut</h1>
       <button id="openSettingsBtn" class="settings-btn" type="button" aria-label="設定">⚙</button>
     </div>
 
     <section class="grid">
-      <p class="hint">現在の配列は Mnemonica 固定です。</p>
-
       <div class="row">
         <div>
-          <label for="bottomSuit">カット後の一番下カード</label>
+          <label for="bottomSuit">ボトムカード</label>
           <div class="card-picker">
-            <div id="bottomSuitButtons" class="picker-row"></div>
+            <div id="bottomSuitButtons" class="picker-row suit-row"></div>
             <div id="bottomRankButtons1" class="picker-row"></div>
             <div id="bottomRankButtons2" class="picker-row"></div>
             <div id="bottomRankButtons3" class="picker-row"></div>
@@ -299,9 +307,9 @@
           </div>
         </div>
         <div>
-          <label for="targetSuit">探したいカード</label>
+          <label for="targetSuit">選ばれたカード</label>
           <div class="card-picker">
-            <div id="targetSuitButtons" class="picker-row"></div>
+            <div id="targetSuitButtons" class="picker-row suit-row"></div>
             <div id="targetRankButtons1" class="picker-row"></div>
             <div id="targetRankButtons2" class="picker-row"></div>
             <div id="targetRankButtons3" class="picker-row"></div>
@@ -416,7 +424,7 @@
 
     const ACTIVE_DECK = MNEMONICA_COMPACT.map(fromCompactCard);
     const PHRASE_STORAGE_KEY = "trump-cut-app-phrases-v1";
-    const SUIT_ROWS = ["S", "H", "D", "C"];
+    const SUIT_ROWS = ["H", "C", "D", "S"];
     const RANK_ROWS = [
       ["A", "2", "3", "4", "5"],
       ["6", "7", "8", "9", "10"],
@@ -701,6 +709,9 @@
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "pick-btn";
+        if (isSuit) {
+          btn.classList.add("suit-btn");
+        }
         btn.textContent = isSuit ? SUIT_SYMBOLS[value] : value;
         if (isSuit && (value === "H" || value === "D")) {
           btn.classList.add("red");
@@ -793,8 +804,8 @@
         ...getSpellPatternMatches(target, facePosition, "front")
       ];
 
-      const line1 = `${formatCardForDisplay(target)} は上から ${backPosition} 枚目です（表向き換算: ${facePosition} 枚目）`;
-      resultEl.textContent = "候補を上から優先して使ってください";
+      const line1 = `${formatCardForDisplay(target)} は上から ${backPosition} 枚目（表向き: ${facePosition} 枚目）`;
+      resultEl.textContent = "";
       basePanelEl.textContent = line1;
 
       if (luckyMatches.length > 0) {
