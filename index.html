@@ -61,23 +61,6 @@
       grid-template-columns: 1fr 1fr 1fr;
       gap: 10px;
     }
-    .toolbar {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-    button {
-      border: 1px solid #cbd5e1;
-      background: #f8fafc;
-      color: #0f172a;
-      border-radius: 8px;
-      padding: 8px 10px;
-      font-size: 0.9rem;
-      cursor: pointer;
-    }
-    button:hover {
-      background: #f1f5f9;
-    }
     .result {
       margin-top: 8px;
       padding: 14px;
@@ -103,19 +86,12 @@
       margin-top: 4px;
       line-height: 1.5;
     }
-    .small {
-      font-size: 0.82rem;
-      color: #6b7280;
-    }
     @media (max-width: 700px) {
       .row {
         grid-template-columns: 1fr;
       }
       .row3 {
         grid-template-columns: 1fr;
-      }
-      button {
-        width: 100%;
       }
     }
   </style>
@@ -125,25 +101,7 @@
     <h1>トランプ カット位置計算アプリ</h1>
 
     <section class="grid">
-      <div>
-        <label for="stackPreset">配列プリセット</label>
-        <select id="stackPreset"></select>
-        <p class="hint">プリセットを選ぶと52枚配列に反映されます。あなた専用の並びも追加できます。</p>
-      </div>
-
-      <div>
-        <label for="deckInput">52枚の初期配列（上→下、1行1枚）</label>
-        <textarea id="deckInput"></textarea>
-        <div class="toolbar">
-          <button id="saveDeckBtn" type="button">この並びを保存</button>
-          <button id="resetDeckBtn" type="button">標準順に戻す</button>
-        </div>
-        <p class="hint">
-          入力形式は <code>S-A</code>, <code>H-10</code>, <code>D-Q</code>, <code>C-7</code> のようにしてください。<br />
-          マーク: S, H, D, C / 数字: A,2..10,J,Q,K
-        </p>
-        <p id="saveStatus" class="small"></p>
-      </div>
+      <p class="hint">現在の配列は Mnemonica 固定です。</p>
 
       <div class="row">
         <div>
@@ -170,21 +128,14 @@
   </main>
 
   <script>
-    const deckInput = document.getElementById("deckInput");
     const bottomCardInput = document.getElementById("bottomCard");
     const targetCardInput = document.getElementById("targetCard");
-    const stackPreset = document.getElementById("stackPreset");
     const bottomSuit = document.getElementById("bottomSuit");
     const bottomRank = document.getElementById("bottomRank");
     const targetSuit = document.getElementById("targetSuit");
     const targetRank = document.getElementById("targetRank");
-    const saveDeckBtn = document.getElementById("saveDeckBtn");
-    const resetDeckBtn = document.getElementById("resetDeckBtn");
-    const saveStatus = document.getElementById("saveStatus");
     const resultEl = document.getElementById("result");
     const errorEl = document.getElementById("error");
-    const STORAGE_KEY = "trump-cut-app-deck-v1";
-    const PRESET_STORAGE_KEY = "trump-cut-app-preset-v1";
 
     const SUIT_LIST = ["S", "H", "D", "C"];
     const SUIT_SYMBOLS = {
@@ -216,46 +167,7 @@
       return `${suit}-${rank}`;
     }
 
-    function fromCompactList(compactList) {
-      return compactList.map(fromCompactCard).join("\n");
-    }
-
-    const PRESETS = [
-      {
-        id: "custom",
-        label: "Custom（自由入力）",
-        deckText: null
-      },
-      {
-        id: "simple-cdhs",
-        label: "Simple（C→D→H→S, A→K）",
-        deckText: buildDeckText(["C", "D", "H", "S"], RANK_LIST)
-      },
-      {
-        id: "mnemonica",
-        label: "Mnemonica（Juan Tamariz）",
-        deckText: fromCompactList(MNEMONICA_COMPACT)
-      },
-      {
-        id: "newdeck-shdc",
-        label: "New Deck風（S→H→D→C, A→K）",
-        deckText: buildDeckText(["S", "H", "D", "C"], RANK_LIST)
-      }
-    ];
-
-    function buildDeckText(suits, ranks) {
-      const lines = [];
-      for (const s of suits) {
-        for (const r of ranks) {
-          lines.push(`${s}-${r}`);
-        }
-      }
-      return lines.join("\n");
-    }
-
-    function defaultDeck() {
-      return buildDeckText(["S", "H", "D", "C"], RANK_LIST);
-    }
+    const ACTIVE_DECK = MNEMONICA_COMPACT.map(fromCompactCard);
 
     function normalizeCard(raw) {
       const value = (raw || "").trim().toUpperCase();
@@ -269,32 +181,6 @@
         return null;
       }
       return `${suit}-${rank}`;
-    }
-
-    function parseDeck(text) {
-      const lines = text
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter((line) => line.length > 0);
-
-      if (lines.length !== 52) {
-        return { error: `初期配列は52枚必要です。現在: ${lines.length}枚` };
-      }
-
-      const normalized = [];
-      const seen = new Set();
-      for (const line of lines) {
-        const card = normalizeCard(line);
-        if (!card) {
-          return { error: `不正なカード表記があります: ${line}` };
-        }
-        if (seen.has(card)) {
-          return { error: `重複カードがあります: ${card}` };
-        }
-        seen.add(card);
-        normalized.push(card);
-      }
-      return { deck: normalized };
     }
 
     function calculatePosition(deck, bottomCard, targetCard) {
@@ -324,7 +210,11 @@
     }
 
     function setCardFromSelects(suitEl, rankEl, outputEl) {
-      outputEl.value = `${suitEl.value}-${rankEl.value}`;
+      outputEl.value = `${SUIT_SYMBOLS[suitEl.value]}${rankEl.value}`;
+    }
+
+    function getCardCode(suitEl, rankEl) {
+      return `${suitEl.value}-${rankEl.value}`;
     }
 
     function fillSelect(selectEl, values, labels = null) {
@@ -346,89 +236,17 @@
       selectEl.style.fontWeight = "700";
     }
 
-    function saveDeck() {
-      const parsedDeck = parseDeck(deckInput.value);
-      if (parsedDeck.error) {
-        showError(parsedDeck.error);
-        saveStatus.textContent = "";
-        return;
-      }
-      localStorage.setItem(STORAGE_KEY, parsedDeck.deck.join("\n"));
-      localStorage.setItem(PRESET_STORAGE_KEY, "custom");
-      stackPreset.value = "custom";
-      saveStatus.textContent = "保存しました（この端末で次回も自動読込）";
-    }
-
-    function loadDeck() {
-      const savedPreset = localStorage.getItem(PRESET_STORAGE_KEY) || "custom";
-      const saved = localStorage.getItem(STORAGE_KEY);
-
-      if (savedPreset !== "custom") {
-        const preset = PRESETS.find((p) => p.id === savedPreset && p.deckText);
-        if (preset) {
-          stackPreset.value = preset.id;
-          deckInput.value = preset.deckText;
-          saveStatus.textContent = `プリセット「${preset.label}」を読み込みました`;
-          return;
-        }
-      }
-
-      if (saved && parseDeck(saved).deck) {
-        stackPreset.value = "custom";
-        deckInput.value = saved;
-        saveStatus.textContent = "保存済みの並びを読み込みました";
-      } else {
-        stackPreset.value = "newdeck-shdc";
-        deckInput.value = defaultDeck();
-      }
-    }
-
-    function fillPresetSelect() {
-      stackPreset.innerHTML = "";
-      for (const preset of PRESETS) {
-        const option = document.createElement("option");
-        option.value = preset.id;
-        option.textContent = preset.label;
-        stackPreset.appendChild(option);
-      }
-    }
-
-    function applyPreset(presetId) {
-      const preset = PRESETS.find((p) => p.id === presetId);
-      if (!preset) {
-        return;
-      }
-      if (preset.id === "custom") {
-        saveStatus.textContent = "Customモードです。52枚配列を自由に編集できます。";
-        localStorage.setItem(PRESET_STORAGE_KEY, "custom");
-        render();
-        return;
-      }
-      deckInput.value = preset.deckText;
-      localStorage.setItem(PRESET_STORAGE_KEY, preset.id);
-      saveStatus.textContent = `プリセット「${preset.label}」を反映しました`;
-      clearError();
-      render();
-    }
-
     function render() {
       clearError();
-
-      const parsedDeck = parseDeck(deckInput.value);
-      if (parsedDeck.error) {
-        showError(parsedDeck.error);
-        return;
-      }
-
-      const bottom = normalizeCard(bottomCardInput.value);
-      const target = normalizeCard(targetCardInput.value);
+      const bottom = getCardCode(bottomSuit, bottomRank);
+      const target = getCardCode(targetSuit, targetRank);
 
       if (!bottom || !target) {
         resultEl.textContent = "一番下カードと探したいカードを入力してください";
         return;
       }
 
-      const calc = calculatePosition(parsedDeck.deck, bottom, target);
+      const calc = calculatePosition(ACTIVE_DECK, bottom, target);
       if (calc.error) {
         showError(calc.error);
         return;
@@ -437,12 +255,10 @@
       resultEl.textContent = `${target} は上から ${calc.position} 枚目です`;
     }
 
-    fillPresetSelect();
     fillSelect(bottomSuit, SUIT_LIST, SUIT_SYMBOLS);
     fillSelect(targetSuit, SUIT_LIST, SUIT_SYMBOLS);
     fillSelect(bottomRank, RANK_LIST);
     fillSelect(targetRank, RANK_LIST);
-    loadDeck();
 
     bottomSuit.value = "C";
     bottomRank.value = "K";
@@ -453,8 +269,6 @@
     setCardFromSelects(bottomSuit, bottomRank, bottomCardInput);
     setCardFromSelects(targetSuit, targetRank, targetCardInput);
 
-    deckInput.addEventListener("input", render);
-    stackPreset.addEventListener("change", () => applyPreset(stackPreset.value));
     bottomSuit.addEventListener("change", () => {
       updateSuitSelectColor(bottomSuit);
       setCardFromSelects(bottomSuit, bottomRank, bottomCardInput);
@@ -471,15 +285,6 @@
     });
     targetRank.addEventListener("change", () => {
       setCardFromSelects(targetSuit, targetRank, targetCardInput);
-      render();
-    });
-    saveDeckBtn.addEventListener("click", saveDeck);
-    resetDeckBtn.addEventListener("click", () => {
-      deckInput.value = defaultDeck();
-      stackPreset.value = "newdeck-shdc";
-      localStorage.setItem(PRESET_STORAGE_KEY, "newdeck-shdc");
-      saveStatus.textContent = "標準順に戻しました";
-      clearError();
       render();
     });
 
