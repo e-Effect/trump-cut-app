@@ -353,7 +353,7 @@
         .reduce((acc, cur) => acc + cur, 0);
     }
 
-    function getLuckyPatternMatches(position) {
+    function getLuckyPatternMatches(position, modeLabel) {
       const now = new Date();
       const month = now.getMonth() + 1;
       const day = now.getDate();
@@ -361,30 +361,31 @@
       const minute = now.getMinutes();
       const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
       const matches = [];
+      const prefix = modeLabel ? `${modeLabel}: ` : "";
 
       if (minute === position) {
-        matches.push(`時刻一致: 今は ${hour24}:${String(minute).padStart(2, "0")}（${minute}分）`);
+        matches.push(`${prefix}時刻一致: 今は ${hour24}:${String(minute).padStart(2, "0")}（${minute}分）`);
       }
 
       if (hour12 === position) {
-        matches.push(`時一致: 今は ${hour12}時台`);
+        matches.push(`${prefix}時一致: 今は ${hour12}時台`);
       }
 
       if (hour24 + minute === position) {
-        matches.push(`時刻の和一致: ${hour24}+${minute}=${position}`);
+        matches.push(`${prefix}時刻の和一致: ${hour24}+${minute}=${position}`);
       }
 
       if (day === position) {
-        matches.push(`日付一致: 今日は ${day}日`);
+        matches.push(`${prefix}日付一致: 今日は ${day}日`);
       }
 
       const monthDayConcat = Number(`${month}${day}`);
       if (monthDayConcat === position) {
-        matches.push(`月日連結一致: ${month}/${day} → ${monthDayConcat}`);
+        matches.push(`${prefix}月日連結一致: ${month}/${day} → ${monthDayConcat}`);
       } else {
         const monthDayDigitSum = sumDigits(monthDayConcat);
         if (monthDayDigitSum === position) {
-          matches.push(`月日連結の桁和一致: ${month}/${day} → ${monthDayConcat} → ${monthDayDigitSum}`);
+          matches.push(`${prefix}月日連結の桁和一致: ${month}/${day} → ${monthDayConcat} → ${monthDayDigitSum}`);
         }
       }
 
@@ -480,12 +481,21 @@
       }
       const phrases = loadPhrases();
       const phrase = phrases[String(calc.position)];
-      const luckyMatches = getLuckyPatternMatches(calc.position);
+      const backPosition = calc.position;
+      const facePosition = 53 - calc.position;
+      const luckyMatches = [
+        ...getLuckyPatternMatches(backPosition, `裏${backPosition}枚目`),
+        ...getLuckyPatternMatches(facePosition, `表${facePosition}枚目`)
+      ];
 
-      const line1 = `${formatCardForDisplay(target)} は上から ${calc.position} 枚目です`;
+      const line1 = `${formatCardForDisplay(target)} は上から ${backPosition} 枚目です（表向き換算: ${facePosition} 枚目）`;
       const line2 = `フレーズ: ${phrase ? `「${phrase}」` : "未設定"}`;
-      const line3 = `ラッキーパターン: ${luckyMatches.length > 0 ? luckyMatches.join(" / ") : "該当なし"}`;
-      resultEl.textContent = `${line1}\n${line2}\n${line3}`;
+      if (luckyMatches.length > 0) {
+        const line3 = luckyMatches.join(" / ");
+        resultEl.textContent = `${line1}\n${line2}\n${line3}`;
+      } else {
+        resultEl.textContent = `${line1}\n${line2}`;
+      }
     }
 
     function openSettings() {
