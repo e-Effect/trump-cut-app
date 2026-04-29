@@ -342,9 +342,32 @@
       font-weight: 650;
       color: #111827;
     }
+    .cut-pos-grid {
+      margin-top: 10px;
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .cut-pos-btn {
+      border: 1px solid #cbd5e1;
+      background: #f8fafc;
+      color: #111827;
+      border-radius: 10px;
+      padding: 10px 0;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .cut-pos-btn.active {
+      background: #e0e7ff;
+      border-color: #6366f1;
+      color: #312e81;
+    }
     @media (max-width: 700px) {
       .row {
         grid-template-columns: 1fr;
+      }
+      .cut-pos-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
       }
       .row3 {
         grid-template-columns: 1fr;
@@ -354,7 +377,7 @@
 </head>
 <body>
   <main class="container">
-    <div class="version">Version v1.0.19</div>
+    <div class="version">Version v1.0.20</div>
     <div class="header">
       <h1>True Cut</h1>
       <div class="header-actions">
@@ -419,17 +442,11 @@
             </div>
           </div>
 
-        <div class="row">
+        <div class="row" style="grid-template-columns: 1fr;">
           <div>
             <label for="cutDesiredPosition">指定された枚数目（1〜52）</label>
-            <input id="cutDesiredPosition" type="number" min="1" max="52" step="1" placeholder="例: 7" />
-          </div>
-          <div>
-            <label for="cutCountMode">数え方</label>
-            <select id="cutCountMode">
-              <option value="back">うら（上からN枚）</option>
-              <option value="front">おもて（表向き換算）</option>
-            </select>
+            <input id="cutDesiredPosition" type="number" min="1" max="52" step="1" placeholder="例: 7" style="display:none;" />
+            <div id="cutDesiredPositionButtons" class="cut-pos-grid"></div>
           </div>
         </div>
 
@@ -490,7 +507,8 @@
     const computeCutBtn = document.getElementById("computeCutBtn");
     const applyCutBtn = document.getElementById("applyCutBtn");
     const cutDesiredPositionInput = document.getElementById("cutDesiredPosition");
-    const cutCountMode = document.getElementById("cutCountMode");
+    const cutDesiredPositionButtons = document.getElementById("cutDesiredPositionButtons");
+    const cutCountMode = null; // count modeは裏固定
     const cutInstructionText = document.getElementById("cutInstructionText");
     const closeSettingsBtn = document.getElementById("closeSettingsBtn");
     const settingsModal = document.getElementById("settingsModal");
@@ -1220,7 +1238,7 @@
         applyCutBtn.style.display = "none";
       }
       cutDesiredPositionInput.value = "";
-      cutCountMode.value = "back";
+      updateCutPositionButtonsActive(null);
 
       // 既存画面の「選ばれたカード」をモーダル初期値として反映（必要ならそのまま変更可能）
       if (targetCardCode && targetCardCode.value) {
@@ -1240,6 +1258,39 @@
       if (!cutGuideModal) return;
       cutGuideModal.classList.remove("show");
       cutGuideModal.setAttribute("aria-hidden", "true");
+    }
+
+    let cutPosButtons = [];
+
+    function updateCutPositionButtonsActive(activePos) {
+      for (const btn of cutPosButtons) {
+        const pos = Number(btn.dataset.position);
+        if (activePos !== null && pos === activePos) {
+          btn.classList.add("active");
+        } else {
+          btn.classList.remove("active");
+        }
+      }
+    }
+
+    function buildCutPositionButtons() {
+      if (!cutDesiredPositionButtons) return;
+      cutDesiredPositionButtons.innerHTML = "";
+      cutPosButtons = [];
+      for (let i = 1; i <= 52; i += 1) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "cut-pos-btn";
+        btn.textContent = String(i);
+        btn.dataset.position = String(i);
+        btn.addEventListener("click", () => {
+          cutDesiredPositionInput.value = String(i);
+          updateCutPositionButtonsActive(i);
+        });
+        cutDesiredPositionButtons.appendChild(btn);
+        cutPosButtons.push(btn);
+      }
+      updateCutPositionButtonsActive(null);
     }
 
     function computeCutInstruction() {
@@ -1270,8 +1321,8 @@
         return;
       }
 
-      const countMode = cutCountMode.value; // back or front
-      const backPositionWanted = countMode === "back" ? desiredPosition : 53 - desiredPosition;
+      // このモードは「裏（上からN枚）」固定
+      const backPositionWanted = desiredPosition;
 
       const bottomIndex = (targetIndex - backPositionWanted + 52) % 52;
       const bottomCode = ACTIVE_DECK[bottomIndex];
@@ -1281,7 +1332,7 @@
       const moveCount = newTopPositionFromOriginal - 1; // 0..51
 
       pendingCutBottomCode = bottomCode;
-      const countTag = countMode === "back" ? "【うら向き】" : "【おもて向き】";
+      const countTag = "【うら向き】";
 
       const moveText = moveCount === 0
         ? "ノーカット（そのまま）"
@@ -1309,6 +1360,7 @@
       render();
     }
 
+    buildCutPositionButtons();
     buildPhraseInputs();
     applyPhrasesToInputs();
     for (const input of getPhraseInputs()) {
