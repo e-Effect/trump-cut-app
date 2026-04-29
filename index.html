@@ -377,7 +377,7 @@
 </head>
 <body>
   <main class="container">
-    <div class="version">Version v1.0.22</div>
+    <div class="version">Version v1.0.23</div>
     <div class="header">
       <h1>True Cut</h1>
       <div class="header-actions">
@@ -1296,6 +1296,7 @@
 
       cutGuideModal.classList.add("show");
       cutGuideModal.setAttribute("aria-hidden", "false");
+      cutGuideModal.style.display = "flex";
 
       // すぐ更新
       updateCutInstruction();
@@ -1305,6 +1306,8 @@
       if (!cutGuideModal) return;
       cutGuideModal.classList.remove("show");
       cutGuideModal.setAttribute("aria-hidden", "true");
+      // iOS端末で class 切替が効きづらいケースに備え、inlineで強制的に隠す
+      cutGuideModal.style.display = "none";
     }
 
     // 指定→カット（事前計算）は updateCutInstruction() に統一（即時表示）
