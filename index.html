@@ -377,7 +377,7 @@
 </head>
 <body>
   <main class="container">
-    <div class="version">Version v1.0.20</div>
+    <div class="version">Version v1.0.22</div>
     <div class="header">
       <h1>True Cut</h1>
       <div class="header-actions">
@@ -422,7 +422,7 @@
   </main>
 
   <div id="cutGuideModal" class="modal-backdrop" aria-hidden="true">
-      <div class="modal-card">
+    <div class="modal-card">
       <div class="modal-head">
         <h2>指定→カット（事前計算）</h2>
         <button id="closeCutBtn" type="button">閉じる</button>
@@ -444,15 +444,9 @@
 
         <div class="row" style="grid-template-columns: 1fr;">
           <div>
-            <label for="cutDesiredPosition">指定された枚数目（1〜52）</label>
-            <input id="cutDesiredPosition" type="number" min="1" max="52" step="1" placeholder="例: 7" style="display:none;" />
-            <div id="cutDesiredPositionButtons" class="cut-pos-grid"></div>
+            <label for="cutDesiredPositionSelect">指定された枚数目（1〜52）</label>
+            <select id="cutDesiredPositionSelect"></select>
           </div>
-        </div>
-
-        <div class="settings-actions">
-          <button id="computeCutBtn" type="button">カット指示を表示</button>
-          <button id="applyCutBtn" type="button" style="display:none;">ボトムカードに反映</button>
         </div>
 
         <div id="cutInstructionText" class="cut-instruction" style="display:none;"></div>
@@ -504,11 +498,7 @@
     const openCutGuideBtn = document.getElementById("openCutGuideBtn");
     const cutGuideModal = document.getElementById("cutGuideModal");
     const closeCutBtn = document.getElementById("closeCutBtn");
-    const computeCutBtn = document.getElementById("computeCutBtn");
-    const applyCutBtn = document.getElementById("applyCutBtn");
-    const cutDesiredPositionInput = document.getElementById("cutDesiredPosition");
-    const cutDesiredPositionButtons = document.getElementById("cutDesiredPositionButtons");
-    const cutCountMode = null; // count modeは裏固定
+    const cutDesiredPositionSelect = document.getElementById("cutDesiredPositionSelect");
     const cutInstructionText = document.getElementById("cutInstructionText");
     const closeSettingsBtn = document.getElementById("closeSettingsBtn");
     const settingsModal = document.getElementById("settingsModal");
@@ -1139,6 +1129,7 @@
       });
 
       setCardDisplay(guideTargetSuitValue, guideTargetRankValue, guideTargetCardCode, guideTargetCardInput);
+      updateCutInstruction();
     }
 
     function render() {
@@ -1229,16 +1220,69 @@
 
     let pendingCutBottomCode = null;
 
+    function fillCutPositionSelect() {
+      if (!cutDesiredPositionSelect) return;
+      cutDesiredPositionSelect.innerHTML = "";
+      for (let i = 1; i <= 52; i += 1) {
+        const option = document.createElement("option");
+        option.value = String(i);
+        option.textContent = String(i);
+        cutDesiredPositionSelect.appendChild(option);
+      }
+    }
+
+    function updateCutInstruction() {
+      if (!cutDesiredPositionSelect || !guideTargetCardCode || !cutInstructionText) return;
+      const targetCode = guideTargetCardCode.value;
+      const desiredPosition = Number(cutDesiredPositionSelect.value);
+
+      if (!targetCode) {
+        cutInstructionText.style.display = "none";
+        cutInstructionText.textContent = "";
+        return;
+      }
+      if (!Number.isInteger(desiredPosition) || desiredPosition < 1 || desiredPosition > 52) {
+        cutInstructionText.style.display = "none";
+        cutInstructionText.textContent = "";
+        return;
+      }
+
+      const targetIndex = ACTIVE_DECK.indexOf(targetCode);
+      if (targetIndex < 0) {
+        cutInstructionText.style.display = "block";
+        cutInstructionText.textContent = "指定するカードがデッキに存在しません。";
+        return;
+      }
+
+      // このモードは「裏（上からN枚）」固定
+      const backPositionWanted = desiredPosition;
+
+      // rotate-left（上からmoveCount枚を下へ回す）すると、指定カードが上からbackPositionWanted枚目になる
+      const moveCount = (targetIndex - backPositionWanted + 1 + 52) % 52;
+      const bottomAfterIndex = (moveCount - 1 + 52) % 52;
+      const bottomAfterCode = ACTIVE_DECK[bottomAfterIndex];
+      const bottomAfterText = formatCardForDisplay(bottomAfterCode);
+
+      if (moveCount === 0) {
+        cutInstructionText.style.display = "block";
+        cutInstructionText.textContent = `ノーカット（そのまま）\n（ボトムは${bottomAfterText}になる）`;
+      } else {
+        cutInstructionText.style.display = "block";
+        cutInstructionText.textContent =
+          `元デッキの上から${moveCount}枚を下へ回します。\n（ボトムは${bottomAfterText}になる）`;
+      }
+    }
+
     function openCutGuide() {
       if (!cutGuideModal) return;
       pendingCutBottomCode = null;
       cutInstructionText.style.display = "none";
       cutInstructionText.textContent = "";
-      if (applyCutBtn) {
-        applyCutBtn.style.display = "none";
+
+      if (cutDesiredPositionSelect) {
+        // デフォルトは1
+        cutDesiredPositionSelect.value = "1";
       }
-      cutDesiredPositionInput.value = "";
-      updateCutPositionButtonsActive(null);
 
       // 既存画面の「選ばれたカード」をモーダル初期値として反映（必要ならそのまま変更可能）
       if (targetCardCode && targetCardCode.value) {
@@ -1252,6 +1296,9 @@
 
       cutGuideModal.classList.add("show");
       cutGuideModal.setAttribute("aria-hidden", "false");
+
+      // すぐ更新
+      updateCutInstruction();
     }
 
     function closeCutGuide() {
@@ -1260,107 +1307,11 @@
       cutGuideModal.setAttribute("aria-hidden", "true");
     }
 
-    let cutPosButtons = [];
-
-    function updateCutPositionButtonsActive(activePos) {
-      for (const btn of cutPosButtons) {
-        const pos = Number(btn.dataset.position);
-        if (activePos !== null && pos === activePos) {
-          btn.classList.add("active");
-        } else {
-          btn.classList.remove("active");
-        }
-      }
+    // 指定→カット（事前計算）は updateCutInstruction() に統一（即時表示）
+    fillCutPositionSelect();
+    if (cutDesiredPositionSelect) {
+      cutDesiredPositionSelect.addEventListener("change", () => updateCutInstruction());
     }
-
-    function buildCutPositionButtons() {
-      if (!cutDesiredPositionButtons) return;
-      cutDesiredPositionButtons.innerHTML = "";
-      cutPosButtons = [];
-      for (let i = 1; i <= 52; i += 1) {
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "cut-pos-btn";
-        btn.textContent = String(i);
-        btn.dataset.position = String(i);
-        btn.addEventListener("click", () => {
-          cutDesiredPositionInput.value = String(i);
-          updateCutPositionButtonsActive(i);
-        });
-        cutDesiredPositionButtons.appendChild(btn);
-        cutPosButtons.push(btn);
-      }
-      updateCutPositionButtonsActive(null);
-    }
-
-    function computeCutInstruction() {
-      const targetCode = guideTargetCardCode ? guideTargetCardCode.value : "";
-      const desiredPosition = Number(cutDesiredPositionInput.value);
-
-      if (!targetCode) {
-        cutInstructionText.style.display = "block";
-        cutInstructionText.textContent = "モーダル内の「指定するカード」を選んでから、指定された枚数目を入力してください。";
-        applyCutBtn.style.display = "none";
-        pendingCutBottomCode = null;
-        return;
-      }
-      if (!Number.isInteger(desiredPosition) || desiredPosition < 1 || desiredPosition > 52) {
-        cutInstructionText.style.display = "block";
-        cutInstructionText.textContent = "指定された枚数目は 1〜52 の範囲で入力してください。";
-        applyCutBtn.style.display = "none";
-        pendingCutBottomCode = null;
-        return;
-      }
-
-      const targetIndex = ACTIVE_DECK.indexOf(targetCode);
-      if (targetIndex < 0) {
-        cutInstructionText.style.display = "block";
-        cutInstructionText.textContent = "指定するカードがデッキに存在しません。";
-        applyCutBtn.style.display = "none";
-        pendingCutBottomCode = null;
-        return;
-      }
-
-      // このモードは「裏（上からN枚）」固定
-      const backPositionWanted = desiredPosition;
-
-      const bottomIndex = (targetIndex - backPositionWanted + 52) % 52;
-      const bottomCode = ACTIVE_DECK[bottomIndex];
-      const newTopIndex = (bottomIndex + 1) % 52;
-      const newTopPositionFromOriginal = newTopIndex + 1; // 1..52
-      const newTopCode = ACTIVE_DECK[newTopIndex];
-      const moveCount = newTopPositionFromOriginal - 1; // 0..51
-
-      pendingCutBottomCode = bottomCode;
-      const countTag = "【うら向き】";
-
-      const moveText = moveCount === 0
-        ? "ノーカット（そのまま）"
-        : `元デッキの上から${moveCount}枚を下へ回します`;
-
-      const checkFace = 53 - backPositionWanted;
-
-      cutInstructionText.style.display = "block";
-      cutInstructionText.textContent =
-        `必要なボトムカード: ${formatCardForDisplay(bottomCode)}\n` +
-        `この準備デッキでは、元デッキの上から${newTopPositionFromOriginal}枚目（${formatCardForDisplay(newTopCode)}）を新トップにします\n` +
-        `${moveText}\n` +
-        `確認: 指定位置が ${countTag} ${desiredPosition}枚目になります（表換算: ${checkFace}枚目）`;
-      applyCutBtn.style.display = "inline-block";
-    }
-
-    function applyPendingCut() {
-      if (!pendingCutBottomCode) return;
-      const [suit, rank] = pendingCutBottomCode.split("-");
-      bottomSuitValue = suit;
-      bottomRankValue = rank;
-      pendingCutBottomCode = null;
-      closeCutGuide();
-      syncCardPickers();
-      render();
-    }
-
-    buildCutPositionButtons();
     buildPhraseInputs();
     applyPhrasesToInputs();
     for (const input of getPhraseInputs()) {
