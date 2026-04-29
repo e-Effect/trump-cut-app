@@ -354,7 +354,7 @@
 </head>
 <body>
   <main class="container">
-    <div class="version">Version v1.0.17</div>
+    <div class="version">Version v1.0.18</div>
     <div class="header">
       <h1>True Cut</h1>
       <div class="header-actions">
@@ -1224,6 +1224,7 @@
       const bottomCode = ACTIVE_DECK[bottomIndex];
       const newTopIndex = (bottomIndex + 1) % 52;
       const newTopPositionFromOriginal = newTopIndex + 1; // 1..52
+      const newTopCode = ACTIVE_DECK[newTopIndex];
       const moveCount = newTopPositionFromOriginal - 1; // 0..51
 
       pendingCutBottomCode = bottomCode;
@@ -1238,7 +1239,7 @@
       cutInstructionText.style.display = "block";
       cutInstructionText.textContent =
         `必要なボトムカード: ${formatCardForDisplay(bottomCode)}\n` +
-        `この準備デッキでは、元デッキの上から${newTopPositionFromOriginal}枚目を新トップにします\n` +
+        `この準備デッキでは、元デッキの上から${newTopPositionFromOriginal}枚目（${formatCardForDisplay(newTopCode)}）を新トップにします\n` +
         `${moveText}\n` +
         `確認: 指定位置が ${countTag} ${desiredPosition}枚目になります（表換算: ${checkFace}枚目）`;
       applyCutBtn.style.display = "inline-block";
