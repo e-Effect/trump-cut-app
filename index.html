@@ -336,6 +336,12 @@
       margin: 0;
       font-size: 1.05rem;
     }
+    .cut-instruction {
+      margin-top: 12px;
+      white-space: pre-line;
+      font-weight: 650;
+      color: #111827;
+    }
     @media (max-width: 700px) {
       .row {
         grid-template-columns: 1fr;
@@ -348,11 +354,12 @@
 </head>
 <body>
   <main class="container">
-    <div class="version">Version v1.0.16</div>
+    <div class="version">Version v1.0.17</div>
     <div class="header">
       <h1>True Cut</h1>
       <div class="header-actions">
         <button id="refreshBtn" class="refresh-btn" type="button" aria-label="更新">更新</button>
+        <button id="openCutGuideBtn" class="refresh-btn" type="button" aria-label="指定→カット">指定→カット</button>
         <button id="openSettingsBtn" class="settings-btn" type="button" aria-label="設定">⚙</button>
       </div>
     </div>
@@ -391,6 +398,39 @@
     </section>
   </main>
 
+  <div id="cutGuideModal" class="modal-backdrop" aria-hidden="true">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2>指定→カット（事前計算）</h2>
+        <button id="closeCutBtn" type="button">閉じる</button>
+      </div>
+      <section class="settings">
+        <p class="hint">上で選んだ「選ばれたカード」が、指定の枚数目に来るように、カットする場所を計算します。</p>
+
+        <div class="row">
+          <div>
+            <label for="cutDesiredPosition">指定された枚数目（1〜52）</label>
+            <input id="cutDesiredPosition" type="number" min="1" max="52" step="1" placeholder="例: 7" />
+          </div>
+          <div>
+            <label for="cutCountMode">数え方</label>
+            <select id="cutCountMode">
+              <option value="back">うら（上からN枚）</option>
+              <option value="front">おもて（表向き換算）</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="settings-actions">
+          <button id="computeCutBtn" type="button">カット指示を表示</button>
+          <button id="applyCutBtn" type="button" style="display:none;">ボトムカードに反映</button>
+        </div>
+
+        <div id="cutInstructionText" class="cut-instruction" style="display:none;"></div>
+      </section>
+    </div>
+  </div>
+
   <div id="settingsModal" class="modal-backdrop" aria-hidden="true">
     <div class="modal-card">
       <div class="modal-head">
@@ -426,6 +466,14 @@
     const targetRankButtons3 = document.getElementById("targetRankButtons3");
     const openSettingsBtn = document.getElementById("openSettingsBtn");
     const refreshBtn = document.getElementById("refreshBtn");
+    const openCutGuideBtn = document.getElementById("openCutGuideBtn");
+    const cutGuideModal = document.getElementById("cutGuideModal");
+    const closeCutBtn = document.getElementById("closeCutBtn");
+    const computeCutBtn = document.getElementById("computeCutBtn");
+    const applyCutBtn = document.getElementById("applyCutBtn");
+    const cutDesiredPositionInput = document.getElementById("cutDesiredPosition");
+    const cutCountMode = document.getElementById("cutCountMode");
+    const cutInstructionText = document.getElementById("cutInstructionText");
     const closeSettingsBtn = document.getElementById("closeSettingsBtn");
     const settingsModal = document.getElementById("settingsModal");
     const phraseGrid = document.getElementById("phraseGrid");
@@ -1119,6 +1167,94 @@
       settingsModal.setAttribute("aria-hidden", "true");
     }
 
+    let pendingCutBottomCode = null;
+
+    function openCutGuide() {
+      if (!cutGuideModal) return;
+      pendingCutBottomCode = null;
+      cutInstructionText.style.display = "none";
+      cutInstructionText.textContent = "";
+      if (applyCutBtn) {
+        applyCutBtn.style.display = "none";
+      }
+      cutDesiredPositionInput.value = "";
+      cutCountMode.value = "back";
+      cutGuideModal.classList.add("show");
+      cutGuideModal.setAttribute("aria-hidden", "false");
+    }
+
+    function closeCutGuide() {
+      if (!cutGuideModal) return;
+      cutGuideModal.classList.remove("show");
+      cutGuideModal.setAttribute("aria-hidden", "true");
+    }
+
+    function computeCutInstruction() {
+      const targetCode = targetCardCode.value;
+      const desiredPosition = Number(cutDesiredPositionInput.value);
+
+      if (!targetCode) {
+        cutInstructionText.style.display = "block";
+        cutInstructionText.textContent = "選ばれたカードを選んでから、指定された枚数目を入力してください。";
+        applyCutBtn.style.display = "none";
+        pendingCutBottomCode = null;
+        return;
+      }
+      if (!Number.isInteger(desiredPosition) || desiredPosition < 1 || desiredPosition > 52) {
+        cutInstructionText.style.display = "block";
+        cutInstructionText.textContent = "指定された枚数目は 1〜52 の範囲で入力してください。";
+        applyCutBtn.style.display = "none";
+        pendingCutBottomCode = null;
+        return;
+      }
+
+      const targetIndex = ACTIVE_DECK.indexOf(targetCode);
+      if (targetIndex < 0) {
+        cutInstructionText.style.display = "block";
+        cutInstructionText.textContent = "選ばれたカードがデッキに存在しません。";
+        applyCutBtn.style.display = "none";
+        pendingCutBottomCode = null;
+        return;
+      }
+
+      const countMode = cutCountMode.value; // back or front
+      const backPositionWanted = countMode === "back" ? desiredPosition : 53 - desiredPosition;
+
+      const bottomIndex = (targetIndex - backPositionWanted + 52) % 52;
+      const bottomCode = ACTIVE_DECK[bottomIndex];
+      const newTopIndex = (bottomIndex + 1) % 52;
+      const newTopPositionFromOriginal = newTopIndex + 1; // 1..52
+      const moveCount = newTopPositionFromOriginal - 1; // 0..51
+
+      pendingCutBottomCode = bottomCode;
+      const countTag = countMode === "back" ? "【うら向き】" : "【おもて向き】";
+
+      const moveText = moveCount === 0
+        ? "ノーカット（そのまま）"
+        : `元デッキの上から${moveCount}枚を下へ回します`;
+
+      const checkFace = 53 - backPositionWanted;
+
+      cutInstructionText.style.display = "block";
+      cutInstructionText.textContent =
+        `必要なボトムカード: ${formatCardForDisplay(bottomCode)}\n` +
+        `この準備デッキでは、元デッキの上から${newTopPositionFromOriginal}枚目を新トップにします\n` +
+        `${moveText}\n` +
+        `確認: 指定位置が ${countTag} ${desiredPosition}枚目になります（表換算: ${checkFace}枚目）`;
+      applyCutBtn.style.display = "inline-block";
+    }
+
+    function applyPendingCut() {
+      if (!pendingCutBottomCode) return;
+      const [suit, rank] = pendingCutBottomCode.split("-");
+      bottomSuitValue = suit;
+      bottomRankValue = rank;
+      pendingCutBottomCode = null;
+      closeCutGuide();
+      syncCardPickers();
+      render();
+    }
+
     buildPhraseInputs();
     applyPhrasesToInputs();
     for (const input of getPhraseInputs()) {
@@ -1185,6 +1321,25 @@
       }
     });
     openSettingsBtn.addEventListener("click", openSettings);
+    if (openCutGuideBtn) {
+      openCutGuideBtn.addEventListener("click", openCutGuide);
+    }
+    if (computeCutBtn) {
+      computeCutBtn.addEventListener("click", computeCutInstruction);
+    }
+    if (applyCutBtn) {
+      applyCutBtn.addEventListener("click", applyPendingCut);
+    }
+    if (closeCutBtn) {
+      closeCutBtn.addEventListener("click", closeCutGuide);
+    }
+    if (cutGuideModal) {
+      cutGuideModal.addEventListener("click", (event) => {
+        if (event.target === cutGuideModal) {
+          closeCutGuide();
+        }
+      });
+    }
     refreshBtn.addEventListener("click", () => {
       const url = new URL(window.location.href);
       url.searchParams.set("v", String(Date.now()));
