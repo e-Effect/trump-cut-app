@@ -377,7 +377,7 @@
 </head>
 <body>
   <main class="container">
-    <div class="version">Version v1.0.26</div>
+    <div class="version">Version v1.0.27</div>
     <div class="header">
       <h1>True Cut</h1>
       <div class="header-actions">
@@ -1262,23 +1262,27 @@
       const bottomAfterIndex = (moveCount - 1 + 52) % 52;
       const bottomAfterCode = ACTIVE_DECK[bottomAfterIndex];
       const bottomAfterText = formatCardForDisplay(bottomAfterCode);
-      const frontExactPosition = 53 - backPositionWanted;
-      const exactInfo =
-        `✅ ジャスト: うら向きで${backPositionWanted}枚目\n` +
-        `⭐ おもて向きで配るなら${frontExactPosition}枚目がジャスト`;
+      const backCurrentPosition = targetIndex + 1;
+      const frontCurrentPosition = 53 - backCurrentPosition;
+      const isBackNoCutJust = backCurrentPosition === backPositionWanted;
+      const isFrontNoCutJust = frontCurrentPosition === backPositionWanted;
 
-      if (moveCount === 0) {
+      if (isBackNoCutJust) {
         cutInstructionText.style.display = "block";
         cutInstructionText.textContent =
-          `${exactInfo}\n` +
+          `✅ ジャスト（ノーカット）\n` +
           `ノーカット（そのまま）\n` +
-          `（ボトムは${bottomAfterText}になる）`;
+          `ボトムは${bottomAfterText}`;
       } else {
+        const lines = [
+          `上から${moveCount}枚を下へ回す。`,
+          `ボトムは${bottomAfterText}`
+        ];
+        if (isFrontNoCutJust) {
+          lines.push("※ うら向きではジャストではありませんが、おもて向きならノーカットでジャストです。");
+        }
         cutInstructionText.style.display = "block";
-        cutInstructionText.textContent =
-          `${exactInfo}\n` +
-          `上から${moveCount}枚を下へ回す。\n` +
-          `（ボトムは${bottomAfterText}になる）`;
+        cutInstructionText.textContent = lines.join("\n");
       }
     }
 
