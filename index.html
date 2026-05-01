@@ -342,6 +342,10 @@
       font-weight: 650;
       color: #111827;
     }
+    .cut-note-red {
+      color: #dc2626;
+      font-weight: 800;
+    }
     .cut-pos-grid {
       margin-top: 10px;
       display: grid;
@@ -1279,7 +1283,10 @@
           `ボトムは${bottomAfterText}`
         ];
         if (isFrontNoCutJust) {
-          lines.push("※ うら向きではジャストではありませんが、おもて向きならノーカットでジャストです。");
+          cutInstructionText.style.display = "block";
+          cutInstructionText.innerHTML =
+            `${lines[0]}<br>${lines[1]}<br><span class="cut-note-red">※ おもて向きならノーカットでジャスト。</span>`;
+          return;
         }
         cutInstructionText.style.display = "block";
         cutInstructionText.textContent = lines.join("\n");
