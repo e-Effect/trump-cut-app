@@ -377,7 +377,7 @@
 </head>
 <body>
   <main class="container">
-    <div class="version">Version v1.0.25</div>
+    <div class="version">Version v1.0.26</div>
     <div class="header">
       <h1>True Cut</h1>
       <div class="header-actions">
@@ -1262,14 +1262,23 @@
       const bottomAfterIndex = (moveCount - 1 + 52) % 52;
       const bottomAfterCode = ACTIVE_DECK[bottomAfterIndex];
       const bottomAfterText = formatCardForDisplay(bottomAfterCode);
+      const frontExactPosition = 53 - backPositionWanted;
+      const exactInfo =
+        `✅ ジャスト: うら向きで${backPositionWanted}枚目\n` +
+        `⭐ おもて向きで配るなら${frontExactPosition}枚目がジャスト`;
 
       if (moveCount === 0) {
         cutInstructionText.style.display = "block";
-        cutInstructionText.textContent = `ノーカット（そのまま）\n（ボトムは${bottomAfterText}になる）`;
+        cutInstructionText.textContent =
+          `${exactInfo}\n` +
+          `ノーカット（そのまま）\n` +
+          `（ボトムは${bottomAfterText}になる）`;
       } else {
         cutInstructionText.style.display = "block";
         cutInstructionText.textContent =
-          `上から${moveCount}枚を下へ回す。\n（ボトムは${bottomAfterText}になる）`;
+          `${exactInfo}\n` +
+          `上から${moveCount}枚を下へ回す。\n` +
+          `（ボトムは${bottomAfterText}になる）`;
       }
     }
 
