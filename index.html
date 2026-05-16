@@ -395,6 +395,16 @@
       justify-content: space-between;
       gap: 10px;
     }
+    .sequence-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    .sequence-actions button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
     .sequence-title {
       font-size: 1rem;
       font-weight: 900;
@@ -600,7 +610,7 @@
 </head>
 <body>
   <main class="container">
-    <div class="version">Version v1.0.32</div>
+    <div class="version">Version v1.0.33</div>
     <div class="header">
       <h1>True Cut</h1>
       <div class="header-actions">
@@ -654,7 +664,10 @@
           <div id="sequenceTitle" class="sequence-title">ボトムカード</div>
           <div id="sequencePicked" class="sequence-picked">未選択</div>
         </div>
-        <button id="sequenceResetBtn" type="button">やり直す</button>
+        <div class="sequence-actions">
+          <button id="sequenceBackBtn" type="button">一つ戻る</button>
+          <button id="sequenceResetBtn" type="button">やり直す</button>
+        </div>
       </div>
       <div class="card-picker sequence-picker">
         <div id="sequenceSuitButtons" class="picker-row suit-row"></div>
@@ -746,6 +759,7 @@
     const sequenceInputView = document.getElementById("sequenceInputView");
     const sequenceTitle = document.getElementById("sequenceTitle");
     const sequencePicked = document.getElementById("sequencePicked");
+    const sequenceBackBtn = document.getElementById("sequenceBackBtn");
     const sequenceResetBtn = document.getElementById("sequenceResetBtn");
     const sequenceSuitButtons = document.getElementById("sequenceSuitButtons");
     const sequenceRankButtons1 = document.getElementById("sequenceRankButtons1");
@@ -1333,7 +1347,7 @@
       }
     }
 
-    function buildButtonRow(container, values, getCurrent, onPick, isSuit = false) {
+    function buildButtonRow(container, values, getCurrent, onPick, isSuit = false, showActive = true) {
       container.innerHTML = "";
       for (const value of values) {
         const btn = document.createElement("button");
@@ -1346,7 +1360,7 @@
         if (isSuit && (value === "H" || value === "D")) {
           btn.classList.add("red");
         }
-        if (value === getCurrent()) {
+        if (showActive && value === getCurrent()) {
           btn.classList.add("active");
         }
         btn.addEventListener("click", () => onPick(value));
@@ -1598,6 +1612,11 @@
       sequenceInputView.classList.toggle("sequence-phase-suit", isSuitStep);
       sequenceInputView.classList.toggle("sequence-phase-rank", isRankStep);
       sequenceInputView.classList.toggle("sequence-phase-result", isResultStep);
+      sequenceBackBtn.disabled = sequenceStep === "bottomSuit";
+      if (!isResultStep) {
+        sequenceResult.style.display = "none";
+        sequenceResult.innerHTML = "";
+      }
 
       if (sequenceStep === "bottomSuit") {
         sequenceTitle.textContent = "\u30dc\u30c8\u30e0\u30ab\u30fc\u30c9\u306e\u30de\u30fc\u30af";
@@ -1616,11 +1635,37 @@
         sequencePicked.textContent = "\u30dc\u30c8\u30e0: " + formatCardForDisplay(sequenceBottomCode) + " / \u9078\u3070\u308c\u305f\u30ab\u30fc\u30c9: " + formatCardForDisplay(sequenceTargetCode);
       }
 
-      buildButtonRow(sequenceSuitButtons, SUIT_ROWS, () => sequenceSuitValue, completeSequenceSuitPick, true);
-      buildButtonRow(sequenceRankButtons1, RANK_ROWS[0], () => sequenceRankValue, completeSequenceRankPick);
-      buildButtonRow(sequenceRankButtons2, RANK_ROWS[1], () => sequenceRankValue, completeSequenceRankPick);
-      buildButtonRow(sequenceRankButtons3, RANK_ROWS[2], () => sequenceRankValue, completeSequenceRankPick);
+      buildButtonRow(sequenceSuitButtons, SUIT_ROWS, () => sequenceSuitValue, completeSequenceSuitPick, true, false);
+      buildButtonRow(sequenceRankButtons1, RANK_ROWS[0], () => sequenceRankValue, completeSequenceRankPick, false, false);
+      buildButtonRow(sequenceRankButtons2, RANK_ROWS[1], () => sequenceRankValue, completeSequenceRankPick, false, false);
+      buildButtonRow(sequenceRankButtons3, RANK_ROWS[2], () => sequenceRankValue, completeSequenceRankPick, false, false);
       setCardDisplay(sequenceSuitValue, sequenceRankValue, sequenceCardCode, sequenceCardInput);
+    }
+
+    function goBackSequenceInput() {
+      if (sequenceStep === "bottomSuit") {
+        return;
+      }
+
+      if (sequenceStep === "bottomRank") {
+        sequenceStep = "bottomSuit";
+        sequenceRankValue = "A";
+      } else if (sequenceStep === "targetSuit") {
+        const parts = sequenceBottomCode.split("-");
+        sequenceSuitValue = parts[0] || "C";
+        sequenceRankValue = parts[1] || "A";
+        sequenceStep = "bottomRank";
+      } else if (sequenceStep === "targetRank") {
+        sequenceStep = "targetSuit";
+        sequenceRankValue = "A";
+      } else if (sequenceStep === "result") {
+        const parts = sequenceTargetCode.split("-");
+        sequenceSuitValue = parts[0] || "C";
+        sequenceRankValue = parts[1] || "A";
+        sequenceStep = "targetRank";
+      }
+
+      syncSequencePickers();
     }
 
     function completeSequenceSuitPick(value) {
@@ -1908,6 +1953,7 @@
     });
     standardModeBtn.addEventListener("click", () => setInputMode("standard"));
     sequenceModeBtn.addEventListener("click", () => setInputMode("sequence"));
+    sequenceBackBtn.addEventListener("click", goBackSequenceInput);
     sequenceResetBtn.addEventListener("click", resetSequenceInput);
     openSettingsBtn.addEventListener("click", openSettings);
     openPhraseSettingsBtn.addEventListener("click", () => showSettingsView("phrase"));
