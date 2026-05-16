@@ -415,28 +415,41 @@
       text-align: center;
     }
     .sequence-result-blue {
-      padding: 18px;
-      border-radius: 10px;
+      padding: 12px;
+      border-radius: 8px;
       background: #eef2ff;
       border: 2px solid #818cf8;
       color: #312e81;
       white-space: pre-line;
+      opacity: 0.92;
     }
     .sequence-result .result-card {
       display: block;
-      font-size: 2rem;
+      font-size: 1.45rem;
       line-height: 1.1;
-      margin-bottom: 8px;
+      margin-bottom: 4px;
     }
     .sequence-result .result-main {
       display: block;
-      font-size: 2.6rem;
+      font-size: 1.85rem;
       line-height: 1.05;
     }
     .sequence-result .result-sub {
       display: block;
-      font-size: 1.05rem;
-      margin-top: 8px;
+      font-size: 0.95rem;
+      margin-top: 6px;
+    }
+    .sequence-result .panel-lucky {
+      font-size: clamp(1.35rem, 5vw, 2.45rem);
+      line-height: 1.2;
+    }
+    .sequence-result .panel-phrase {
+      font-size: clamp(1.2rem, 4.5vw, 2.05rem);
+      line-height: 1.25;
+    }
+    .sequence-result .panel-spell {
+      font-size: clamp(1.1rem, 4vw, 1.8rem);
+      line-height: 1.25;
     }
     .sequence-picker {
       min-height: 58vh;
@@ -476,6 +489,13 @@
     }
     #sequenceInputView .card-chip {
       display: none;
+    }
+    #sequenceInputView.sequence-phase-result .sequence-picker {
+      display: none;
+    }
+    #sequenceInputView.sequence-phase-result .sequence-result {
+      display: grid;
+      margin-top: 12px;
     }
     button {
       border: 1px solid #cbd5e1;
@@ -580,7 +600,7 @@
 </head>
 <body>
   <main class="container">
-    <div class="version">Version v1.0.31</div>
+    <div class="version">Version v1.0.32</div>
     <div class="header">
       <h1>True Cut</h1>
       <div class="header-actions">
@@ -1573,8 +1593,11 @@
 
     function syncSequencePickers() {
       const isSuitStep = sequenceStep === "bottomSuit" || sequenceStep === "targetSuit";
+      const isRankStep = sequenceStep === "bottomRank" || sequenceStep === "targetRank";
+      const isResultStep = sequenceStep === "result";
       sequenceInputView.classList.toggle("sequence-phase-suit", isSuitStep);
-      sequenceInputView.classList.toggle("sequence-phase-rank", !isSuitStep);
+      sequenceInputView.classList.toggle("sequence-phase-rank", isRankStep);
+      sequenceInputView.classList.toggle("sequence-phase-result", isResultStep);
 
       if (sequenceStep === "bottomSuit") {
         sequenceTitle.textContent = "\u30dc\u30c8\u30e0\u30ab\u30fc\u30c9\u306e\u30de\u30fc\u30af";
@@ -1585,9 +1608,12 @@
       } else if (sequenceStep === "targetSuit") {
         sequenceTitle.textContent = "\u9078\u3070\u308c\u305f\u30ab\u30fc\u30c9\u306e\u30de\u30fc\u30af";
         sequencePicked.textContent = "\u30dc\u30c8\u30e0: " + formatCardForDisplay(sequenceBottomCode);
-      } else {
+      } else if (sequenceStep === "targetRank") {
         sequenceTitle.textContent = "\u9078\u3070\u308c\u305f\u30ab\u30fc\u30c9\u306e\u6570\u5b57";
         sequencePicked.textContent = "\u30dc\u30c8\u30e0: " + formatCardForDisplay(sequenceBottomCode) + " / \u30de\u30fc\u30af: " + SUIT_SYMBOLS[sequenceSuitValue];
+      } else {
+        sequenceTitle.textContent = "\u7d50\u679c";
+        sequencePicked.textContent = "\u30dc\u30c8\u30e0: " + formatCardForDisplay(sequenceBottomCode) + " / \u9078\u3070\u308c\u305f\u30ab\u30fc\u30c9: " + formatCardForDisplay(sequenceTargetCode);
       }
 
       buildButtonRow(sequenceSuitButtons, SUIT_ROWS, () => sequenceSuitValue, completeSequenceSuitPick, true);
@@ -1635,6 +1661,7 @@
       targetSuitValue = sequenceSuitValue;
       targetRankValue = sequenceRankValue;
       syncCardPickers();
+      sequenceStep = "result";
       syncSequencePickers();
       render();
       renderSequenceResult();
@@ -1674,13 +1701,6 @@
       ];
 
       sequenceResult.style.display = "grid";
-      const bluePanel = document.createElement("div");
-      bluePanel.className = "sequence-result-blue sequence-result-panel";
-      bluePanel.innerHTML =
-        '<span class="result-card">' + formatCardForDisplay(sequenceTargetCode) + '</span>' +
-        '<span class="result-main">\u4e0a\u304b\u3089 ' + backPosition + '</span>' +
-        '<span class="result-sub">\u8868\u5411\u304d: ' + facePosition + ' / \u30dc\u30c8\u30e0: ' + formatCardForDisplay(sequenceBottomCode) + '</span>';
-      sequenceResult.appendChild(bluePanel);
 
       if (luckyMatches.length > 0) {
         appendSequencePanel("panel panel-lucky sequence-result-panel", luckyMatches.join("\n"));
@@ -1696,6 +1716,14 @@
       for (const match of spellMatches) {
         appendSequencePanel("panel panel-spell sequence-result-panel", match);
       }
+
+      const bluePanel = document.createElement("div");
+      bluePanel.className = "sequence-result-blue sequence-result-panel";
+      bluePanel.innerHTML =
+        '<span class="result-card">' + formatCardForDisplay(sequenceTargetCode) + '</span>' +
+        '<span class="result-main">\u4e0a\u304b\u3089 ' + backPosition + '</span>' +
+        '<span class="result-sub">\u8868\u5411\u304d: ' + facePosition + ' / \u30dc\u30c8\u30e0: ' + formatCardForDisplay(sequenceBottomCode) + '</span>';
+      sequenceResult.appendChild(bluePanel);
     }
 
     let pendingCutBottomCode = null;
