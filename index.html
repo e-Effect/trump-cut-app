@@ -298,20 +298,20 @@
     }
     .stack-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
+      grid-template-columns: repeat(7, minmax(0, 1fr));
       gap: 8px;
       max-height: 58vh;
       overflow: auto;
       padding-right: 4px;
     }
     .stack-card {
-      min-height: 88px;
+      min-height: 82px;
       border: 1px solid #d1d5db;
       border-radius: 8px;
       background: #fff;
       padding: 8px;
       display: grid;
-      grid-template-rows: auto 1fr auto;
+      grid-template-rows: auto 1fr;
       box-shadow: 0 1px 2px rgba(17, 24, 39, 0.08);
     }
     .stack-card.red {
@@ -328,18 +328,17 @@
     .stack-face {
       align-self: center;
       justify-self: center;
-      font-size: 1.55rem;
       font-weight: 900;
-      line-height: 1;
+      line-height: 1.05;
+      text-align: center;
+      display: grid;
+      gap: 4px;
     }
-    .stack-code {
-      justify-self: end;
-      font-size: 0.72rem;
-      font-weight: 700;
-      color: #6b7280;
+    .stack-suit {
+      font-size: 1.45rem;
     }
-    .stack-card.red .stack-code {
-      color: #b91c1c;
+    .stack-rank {
+      font-size: 1rem;
     }
     .import-input {
       display: none;
@@ -455,7 +454,7 @@
 </head>
 <body>
   <main class="container">
-    <div class="version">Version v1.0.28</div>
+    <div class="version">Version v1.0.29</div>
     <div class="header">
       <h1>True Cut</h1>
       <div class="header-actions">
@@ -1354,7 +1353,7 @@
         return;
       }
       ACTIVE_DECK.forEach((cardCode, index) => {
-        const [suit] = cardCode.split("-");
+        const [suit, rank] = cardCode.split("-");
         const cardEl = document.createElement("div");
         cardEl.className = "stack-card";
         if (suit === "H" || suit === "D") {
@@ -1367,13 +1366,16 @@
 
         const faceEl = document.createElement("div");
         faceEl.className = "stack-face";
-        faceEl.textContent = formatCardForDisplay(cardCode);
+        const suitEl = document.createElement("div");
+        suitEl.className = "stack-suit";
+        suitEl.textContent = SUIT_SYMBOLS[suit];
 
-        const codeEl = document.createElement("div");
-        codeEl.className = "stack-code";
-        codeEl.textContent = cardCode.replace("-", "");
+        const rankEl = document.createElement("div");
+        rankEl.className = "stack-rank";
+        rankEl.textContent = rank;
 
-        cardEl.append(positionEl, faceEl, codeEl);
+        faceEl.append(suitEl, rankEl);
+        cardEl.append(positionEl, faceEl);
         stackGrid.appendChild(cardEl);
       });
     }
