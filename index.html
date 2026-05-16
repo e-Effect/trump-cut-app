@@ -406,14 +406,20 @@
     }
     .sequence-result {
       display: none;
+      gap: 8px;
       margin-top: 8px;
+      font-weight: 900;
+    }
+    .sequence-result-panel {
+      margin-top: 0;
+      text-align: center;
+    }
+    .sequence-result-blue {
       padding: 18px;
       border-radius: 10px;
       background: #eef2ff;
       border: 2px solid #818cf8;
       color: #312e81;
-      text-align: center;
-      font-weight: 900;
       white-space: pre-line;
     }
     .sequence-result .result-card {
@@ -431,6 +437,45 @@
       display: block;
       font-size: 1.05rem;
       margin-top: 8px;
+    }
+    .sequence-picker {
+      min-height: 58vh;
+    }
+    #sequenceInputView .picker-row {
+      display: none;
+    }
+    #sequenceInputView.sequence-phase-suit #sequenceSuitButtons {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-rows: repeat(2, minmax(140px, 1fr));
+      gap: 10px;
+    }
+    #sequenceInputView.sequence-phase-rank #sequenceRankButtons1,
+    #sequenceInputView.sequence-phase-rank #sequenceRankButtons2 {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    #sequenceInputView.sequence-phase-rank #sequenceRankButtons3 {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      max-width: none;
+    }
+    #sequenceInputView .suit-row .pick-btn {
+      min-height: min(34vh, 230px);
+      font-size: clamp(4.5rem, 18vw, 9rem);
+      line-height: 1;
+    }
+    #sequenceInputView .rank-row-5 .pick-btn,
+    #sequenceInputView .rank-row-3 .pick-btn {
+      min-height: 96px;
+      font-size: clamp(2.25rem, 8vw, 4.6rem);
+      line-height: 1;
+    }
+    #sequenceInputView .card-chip {
+      display: none;
     }
     button {
       border: 1px solid #cbd5e1;
@@ -520,12 +565,22 @@
       .sequence-result .result-main {
         font-size: 2.2rem;
       }
+      #sequenceInputView.sequence-phase-suit #sequenceSuitButtons {
+        grid-template-rows: repeat(2, minmax(120px, 1fr));
+      }
+      #sequenceInputView .suit-row .pick-btn {
+        min-height: 120px;
+      }
+      #sequenceInputView .rank-row-5 .pick-btn,
+      #sequenceInputView .rank-row-3 .pick-btn {
+        min-height: 78px;
+      }
     }
   </style>
 </head>
 <body>
   <main class="container">
-    <div class="version">Version v1.0.30</div>
+    <div class="version">Version v1.0.31</div>
     <div class="header">
       <h1>True Cut</h1>
       <div class="header-actions">
@@ -581,7 +636,7 @@
         </div>
         <button id="sequenceResetBtn" type="button">やり直す</button>
       </div>
-      <div class="card-picker">
+      <div class="card-picker sequence-picker">
         <div id="sequenceSuitButtons" class="picker-row suit-row"></div>
         <div id="sequenceRankButtons1" class="picker-row rank-row-5"></div>
         <div id="sequenceRankButtons2" class="picker-row rank-row-5"></div>
@@ -792,7 +847,7 @@
     let targetRankValue = "A";
     let guideTargetSuitValue = "S";
     let guideTargetRankValue = "A";
-    let sequenceStep = "bottom";
+    let sequenceStep = "bottomSuit";
     let sequenceSuitValue = "C";
     let sequenceRankValue = "A";
     let sequenceBottomCode = "";
@@ -1506,7 +1561,7 @@
     }
 
     function resetSequenceInput() {
-      sequenceStep = "bottom";
+      sequenceStep = "bottomSuit";
       sequenceSuitValue = "C";
       sequenceRankValue = "A";
       sequenceBottomCode = "";
@@ -1517,22 +1572,41 @@
     }
 
     function syncSequencePickers() {
-      const title = sequenceStep === "bottom" ? "ボトムカード" : "選ばれたカード";
-      sequenceTitle.textContent = title;
-      if (sequenceStep === "bottom") {
-        sequencePicked.textContent = "未選択";
+      const isSuitStep = sequenceStep === "bottomSuit" || sequenceStep === "targetSuit";
+      sequenceInputView.classList.toggle("sequence-phase-suit", isSuitStep);
+      sequenceInputView.classList.toggle("sequence-phase-rank", !isSuitStep);
+
+      if (sequenceStep === "bottomSuit") {
+        sequenceTitle.textContent = "\u30dc\u30c8\u30e0\u30ab\u30fc\u30c9\u306e\u30de\u30fc\u30af";
+        sequencePicked.textContent = "\u672a\u9078\u629e";
+      } else if (sequenceStep === "bottomRank") {
+        sequenceTitle.textContent = "\u30dc\u30c8\u30e0\u30ab\u30fc\u30c9\u306e\u6570\u5b57";
+        sequencePicked.textContent = "\u30de\u30fc\u30af: " + SUIT_SYMBOLS[sequenceSuitValue];
+      } else if (sequenceStep === "targetSuit") {
+        sequenceTitle.textContent = "\u9078\u3070\u308c\u305f\u30ab\u30fc\u30c9\u306e\u30de\u30fc\u30af";
+        sequencePicked.textContent = "\u30dc\u30c8\u30e0: " + formatCardForDisplay(sequenceBottomCode);
       } else {
-        sequencePicked.textContent = "ボトム: " + formatCardForDisplay(sequenceBottomCode);
+        sequenceTitle.textContent = "\u9078\u3070\u308c\u305f\u30ab\u30fc\u30c9\u306e\u6570\u5b57";
+        sequencePicked.textContent = "\u30dc\u30c8\u30e0: " + formatCardForDisplay(sequenceBottomCode) + " / \u30de\u30fc\u30af: " + SUIT_SYMBOLS[sequenceSuitValue];
       }
 
-      buildButtonRow(sequenceSuitButtons, SUIT_ROWS, () => sequenceSuitValue, (value) => {
-        sequenceSuitValue = value;
-        syncSequencePickers();
-      }, true);
+      buildButtonRow(sequenceSuitButtons, SUIT_ROWS, () => sequenceSuitValue, completeSequenceSuitPick, true);
       buildButtonRow(sequenceRankButtons1, RANK_ROWS[0], () => sequenceRankValue, completeSequenceRankPick);
       buildButtonRow(sequenceRankButtons2, RANK_ROWS[1], () => sequenceRankValue, completeSequenceRankPick);
       buildButtonRow(sequenceRankButtons3, RANK_ROWS[2], () => sequenceRankValue, completeSequenceRankPick);
       setCardDisplay(sequenceSuitValue, sequenceRankValue, sequenceCardCode, sequenceCardInput);
+    }
+
+    function completeSequenceSuitPick(value) {
+      sequenceSuitValue = value;
+      if (sequenceStep === "bottomSuit") {
+        sequenceStep = "bottomRank";
+        sequenceRankValue = "A";
+      } else if (sequenceStep === "targetSuit") {
+        sequenceStep = "targetRank";
+        sequenceRankValue = "A";
+      }
+      syncSequencePickers();
     }
 
     function completeSequenceRankPick(value) {
@@ -1540,16 +1614,20 @@
       const pickedCode = sequenceSuitValue + "-" + sequenceRankValue;
       setCardDisplay(sequenceSuitValue, sequenceRankValue, sequenceCardCode, sequenceCardInput);
 
-      if (sequenceStep === "bottom") {
+      if (sequenceStep === "bottomRank") {
         sequenceBottomCode = pickedCode;
         bottomSuitValue = sequenceSuitValue;
         bottomRankValue = sequenceRankValue;
-        sequenceStep = "target";
-        sequenceSuitValue = "S";
+        sequenceStep = "targetSuit";
+        sequenceSuitValue = "C";
         sequenceRankValue = "A";
         syncCardPickers();
         syncSequencePickers();
         render();
+        return;
+      }
+
+      if (sequenceStep !== "targetRank") {
         return;
       }
 
@@ -1562,20 +1640,62 @@
       renderSequenceResult();
     }
 
+    function appendSequencePanel(className, text) {
+      const panel = document.createElement("div");
+      panel.className = className;
+      panel.textContent = text;
+      sequenceResult.appendChild(panel);
+    }
+
     function renderSequenceResult() {
       const calc = calculatePosition(ACTIVE_DECK, sequenceBottomCode, sequenceTargetCode);
+      sequenceResult.innerHTML = "";
       if (calc.error) {
-        sequenceResult.style.display = "block";
-        sequenceResult.textContent = calc.error;
+        sequenceResult.style.display = "grid";
+        appendSequencePanel("error sequence-result-panel", calc.error);
         return;
       }
       const backPosition = calc.position;
       const facePosition = 53 - calc.position;
-      sequenceResult.style.display = "block";
-      sequenceResult.innerHTML =
+      const phrases = loadPhrases();
+      const phraseEntry = phrases[String(calc.position)] || { text: "", orientation: "back" };
+      const phrase = phraseEntry.text || "";
+      const luckyMatches = [
+        ...getLuckyPatternMatches(backPosition, "back"),
+        ...getLuckyPatternMatches(facePosition, "front")
+      ];
+      const upcomingHints = [
+        ...getUpcomingLuckyHints(backPosition, "back"),
+        ...getUpcomingLuckyHints(facePosition, "front")
+      ];
+      const spellMatches = [
+        ...getSpellPatternMatches(sequenceTargetCode, backPosition, "back"),
+        ...getSpellPatternMatches(sequenceTargetCode, facePosition, "front")
+      ];
+
+      sequenceResult.style.display = "grid";
+      const bluePanel = document.createElement("div");
+      bluePanel.className = "sequence-result-blue sequence-result-panel";
+      bluePanel.innerHTML =
         '<span class="result-card">' + formatCardForDisplay(sequenceTargetCode) + '</span>' +
-        '<span class="result-main">上から ' + backPosition + '</span>' +
-        '<span class="result-sub">表向き: ' + facePosition + ' / ボトム: ' + formatCardForDisplay(sequenceBottomCode) + '</span>';
+        '<span class="result-main">\u4e0a\u304b\u3089 ' + backPosition + '</span>' +
+        '<span class="result-sub">\u8868\u5411\u304d: ' + facePosition + ' / \u30dc\u30c8\u30e0: ' + formatCardForDisplay(sequenceBottomCode) + '</span>';
+      sequenceResult.appendChild(bluePanel);
+
+      if (luckyMatches.length > 0) {
+        appendSequencePanel("panel panel-lucky sequence-result-panel", luckyMatches.join("\n"));
+      } else if (upcomingHints.length > 0) {
+        appendSequencePanel("panel panel-lucky sequence-result-panel", upcomingHints.join("\n"));
+      }
+
+      if (phrase) {
+        const orient = phraseEntry.orientation === "front" ? "\u3010\u304a\u3082\u3066\u5411\u304d\u3011" : "\u3010\u3046\u3089\u5411\u304d\u3011";
+        appendSequencePanel("panel panel-phrase sequence-result-panel", "\u300c" + phrase + "\u300d" + orient);
+      }
+
+      for (const match of spellMatches) {
+        appendSequencePanel("panel panel-spell sequence-result-panel", match);
+      }
     }
 
     let pendingCutBottomCode = null;
