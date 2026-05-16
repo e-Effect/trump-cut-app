@@ -223,6 +223,35 @@
       font-size: 1rem;
       margin: 0 0 10px 0;
     }
+    .settings-menu {
+      display: grid;
+      gap: 10px;
+    }
+    .settings-menu-btn {
+      width: 100%;
+      text-align: left;
+      padding: 14px;
+      border-radius: 8px;
+      background: #fff;
+      font-weight: 800;
+    }
+    .settings-menu-btn span {
+      display: block;
+      margin-top: 4px;
+      color: #6b7280;
+      font-size: 0.82rem;
+      font-weight: 500;
+      line-height: 1.4;
+    }
+    .settings-view {
+      display: none;
+    }
+    .settings-view.active {
+      display: block;
+    }
+    .back-btn {
+      margin-bottom: 10px;
+    }
     .phrase-grid {
       display: grid;
       grid-template-columns: 52px 1fr 78px 22px;
@@ -266,6 +295,51 @@
       gap: 8px;
       margin-top: 10px;
       flex-wrap: wrap;
+    }
+    .stack-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
+      gap: 8px;
+      max-height: 58vh;
+      overflow: auto;
+      padding-right: 4px;
+    }
+    .stack-card {
+      min-height: 88px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      background: #fff;
+      padding: 8px;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      box-shadow: 0 1px 2px rgba(17, 24, 39, 0.08);
+    }
+    .stack-card.red {
+      color: #dc2626;
+    }
+    .stack-position {
+      font-size: 0.72rem;
+      color: #6b7280;
+      font-weight: 700;
+    }
+    .stack-card.red .stack-position {
+      color: #b91c1c;
+    }
+    .stack-face {
+      align-self: center;
+      justify-self: center;
+      font-size: 1.55rem;
+      font-weight: 900;
+      line-height: 1;
+    }
+    .stack-code {
+      justify-self: end;
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: #6b7280;
+    }
+    .stack-card.red .stack-code {
+      color: #b91c1c;
     }
     .import-input {
       display: none;
@@ -381,7 +455,7 @@
 </head>
 <body>
   <main class="container">
-    <div class="version">Version v1.0.27</div>
+    <div class="version">Version v1.0.28</div>
     <div class="header">
       <h1>True Cut</h1>
       <div class="header-actions">
@@ -461,10 +535,23 @@
   <div id="settingsModal" class="modal-backdrop" aria-hidden="true">
     <div class="modal-card">
       <div class="modal-head">
-        <h2>演出フレーズ設定（1〜52枚目）</h2>
+        <h2 id="settingsTitle">設定</h2>
         <button id="closeSettingsBtn" type="button">閉じる</button>
       </div>
-      <section class="settings">
+      <section id="settingsMenu" class="settings settings-view active">
+        <div class="settings-menu">
+          <button id="openPhraseSettingsBtn" class="settings-menu-btn" type="button">
+            演出フレーズ設定
+            <span>1〜52枚目ごとの表示フレーズを編集します。</span>
+          </button>
+          <button id="openStackViewBtn" class="settings-menu-btn" type="button">
+            スタック閲覧
+            <span>Mnemonicaの並びを上から順番に確認します。</span>
+          </button>
+        </div>
+      </section>
+      <section id="phraseSettingsView" class="settings settings-view">
+        <button id="backToSettingsMenuFromPhraseBtn" class="back-btn" type="button">← 設定に戻る</button>
         <p class="hint">各枚数に対して表示したいフレーズを設定できます。未設定なら枚数のみ表示します。</p>
         <div id="phraseGrid" class="phrase-grid"></div>
         <div class="settings-actions">
@@ -474,6 +561,11 @@
           <button id="importPhrasesBtn" type="button">JSONインポート</button>
           <input id="importPhrasesFile" class="import-input" type="file" accept="application/json,.json" />
         </div>
+      </section>
+      <section id="stackView" class="settings settings-view">
+        <button id="backToSettingsMenuFromStackBtn" class="back-btn" type="button">← 設定に戻る</button>
+        <p class="hint">上から1枚目が♣4、52枚目が♦9です。</p>
+        <div id="stackGrid" class="stack-grid"></div>
       </section>
     </div>
   </div>
@@ -506,6 +598,15 @@
     const cutInstructionText = document.getElementById("cutInstructionText");
     const closeSettingsBtn = document.getElementById("closeSettingsBtn");
     const settingsModal = document.getElementById("settingsModal");
+    const settingsTitle = document.getElementById("settingsTitle");
+    const settingsMenu = document.getElementById("settingsMenu");
+    const phraseSettingsView = document.getElementById("phraseSettingsView");
+    const stackView = document.getElementById("stackView");
+    const openPhraseSettingsBtn = document.getElementById("openPhraseSettingsBtn");
+    const openStackViewBtn = document.getElementById("openStackViewBtn");
+    const backToSettingsMenuFromPhraseBtn = document.getElementById("backToSettingsMenuFromPhraseBtn");
+    const backToSettingsMenuFromStackBtn = document.getElementById("backToSettingsMenuFromStackBtn");
+    const stackGrid = document.getElementById("stackGrid");
     const phraseGrid = document.getElementById("phraseGrid");
     const savePhrasesBtn = document.getElementById("savePhrasesBtn");
     const clearPhrasesBtn = document.getElementById("clearPhrasesBtn");
@@ -1213,6 +1314,7 @@
     }
 
     function openSettings() {
+      showSettingsView("menu");
       settingsModal.classList.add("show");
       settingsModal.setAttribute("aria-hidden", "false");
     }
@@ -1220,6 +1322,60 @@
     function closeSettings() {
       settingsModal.classList.remove("show");
       settingsModal.setAttribute("aria-hidden", "true");
+    }
+
+    function showSettingsView(viewName) {
+      const views = [settingsMenu, phraseSettingsView, stackView];
+      for (const view of views) {
+        if (view) {
+          view.classList.remove("active");
+        }
+      }
+
+      if (viewName === "phrase") {
+        settingsTitle.textContent = "演出フレーズ設定";
+        phraseSettingsView.classList.add("active");
+        return;
+      }
+
+      if (viewName === "stack") {
+        settingsTitle.textContent = "スタック閲覧";
+        renderStackDeck();
+        stackView.classList.add("active");
+        return;
+      }
+
+      settingsTitle.textContent = "設定";
+      settingsMenu.classList.add("active");
+    }
+
+    function renderStackDeck() {
+      if (!stackGrid || stackGrid.childElementCount > 0) {
+        return;
+      }
+      ACTIVE_DECK.forEach((cardCode, index) => {
+        const [suit] = cardCode.split("-");
+        const cardEl = document.createElement("div");
+        cardEl.className = "stack-card";
+        if (suit === "H" || suit === "D") {
+          cardEl.classList.add("red");
+        }
+
+        const positionEl = document.createElement("div");
+        positionEl.className = "stack-position";
+        positionEl.textContent = `${index + 1}枚目`;
+
+        const faceEl = document.createElement("div");
+        faceEl.className = "stack-face";
+        faceEl.textContent = formatCardForDisplay(cardCode);
+
+        const codeEl = document.createElement("div");
+        codeEl.className = "stack-code";
+        codeEl.textContent = cardCode.replace("-", "");
+
+        cardEl.append(positionEl, faceEl, codeEl);
+        stackGrid.appendChild(cardEl);
+      });
     }
 
     let pendingCutBottomCode = null;
@@ -1402,6 +1558,10 @@
       }
     });
     openSettingsBtn.addEventListener("click", openSettings);
+    openPhraseSettingsBtn.addEventListener("click", () => showSettingsView("phrase"));
+    openStackViewBtn.addEventListener("click", () => showSettingsView("stack"));
+    backToSettingsMenuFromPhraseBtn.addEventListener("click", () => showSettingsView("menu"));
+    backToSettingsMenuFromStackBtn.addEventListener("click", () => showSettingsView("menu"));
     if (openCutGuideBtn) {
       openCutGuideBtn.addEventListener("click", openCutGuide);
     }
