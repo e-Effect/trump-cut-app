@@ -364,6 +364,74 @@
       font-weight: 700;
       padding: 0 12px;
     }
+    .mode-tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .mode-btn {
+      min-height: 44px;
+      font-weight: 800;
+      border-radius: 999px;
+    }
+    .mode-btn.active {
+      background: #111827;
+      border-color: #111827;
+      color: #fff;
+    }
+    .input-view {
+      display: none;
+    }
+    .input-view.active {
+      display: grid;
+    }
+    .sequence-view {
+      gap: 14px;
+    }
+    .sequence-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .sequence-title {
+      font-size: 1rem;
+      font-weight: 900;
+    }
+    .sequence-picked {
+      font-size: 0.92rem;
+      color: #4b5563;
+      font-weight: 700;
+    }
+    .sequence-result {
+      display: none;
+      margin-top: 8px;
+      padding: 18px;
+      border-radius: 10px;
+      background: #eef2ff;
+      border: 2px solid #818cf8;
+      color: #312e81;
+      text-align: center;
+      font-weight: 900;
+      white-space: pre-line;
+    }
+    .sequence-result .result-card {
+      display: block;
+      font-size: 2rem;
+      line-height: 1.1;
+      margin-bottom: 8px;
+    }
+    .sequence-result .result-main {
+      display: block;
+      font-size: 2.6rem;
+      line-height: 1.05;
+    }
+    .sequence-result .result-sub {
+      display: block;
+      font-size: 1.05rem;
+      margin-top: 8px;
+    }
     button {
       border: 1px solid #cbd5e1;
       background: #ffffff;
@@ -449,12 +517,15 @@
       .row3 {
         grid-template-columns: 1fr;
       }
+      .sequence-result .result-main {
+        font-size: 2.2rem;
+      }
     }
   </style>
 </head>
 <body>
   <main class="container">
-    <div class="version">Version v1.0.29</div>
+    <div class="version">Version v1.0.30</div>
     <div class="header">
       <h1>True Cut</h1>
       <div class="header-actions">
@@ -464,7 +535,12 @@
       </div>
     </div>
 
-    <section class="grid">
+    <div class="mode-tabs" role="group" aria-label="入力方法">
+      <button id="standardModeBtn" class="mode-btn active" type="button">同時入力</button>
+      <button id="sequenceModeBtn" class="mode-btn" type="button">順番入力</button>
+    </div>
+
+    <section id="standardInputView" class="grid input-view active">
       <div class="row">
         <div>
           <label for="bottomSuit">ボトムカード</label>
@@ -495,6 +571,25 @@
       <div id="phrasePanel" class="panel panel-phrase" style="display:none;"></div>
       <div id="basePanel" class="result result-small"></div>
       <div id="error" class="error" style="display:none;"></div>
+    </section>
+
+    <section id="sequenceInputView" class="grid input-view sequence-view">
+      <div class="sequence-head">
+        <div>
+          <div id="sequenceTitle" class="sequence-title">ボトムカード</div>
+          <div id="sequencePicked" class="sequence-picked">未選択</div>
+        </div>
+        <button id="sequenceResetBtn" type="button">やり直す</button>
+      </div>
+      <div class="card-picker">
+        <div id="sequenceSuitButtons" class="picker-row suit-row"></div>
+        <div id="sequenceRankButtons1" class="picker-row rank-row-5"></div>
+        <div id="sequenceRankButtons2" class="picker-row rank-row-5"></div>
+        <div id="sequenceRankButtons3" class="picker-row rank-row-3"></div>
+        <input id="sequenceCardCode" type="hidden" />
+        <div id="sequenceCard" class="card-chip"></div>
+      </div>
+      <div id="sequenceResult" class="sequence-result"></div>
     </section>
   </main>
 
@@ -570,6 +665,20 @@
   </div>
 
   <script>
+    const standardModeBtn = document.getElementById("standardModeBtn");
+    const sequenceModeBtn = document.getElementById("sequenceModeBtn");
+    const standardInputView = document.getElementById("standardInputView");
+    const sequenceInputView = document.getElementById("sequenceInputView");
+    const sequenceTitle = document.getElementById("sequenceTitle");
+    const sequencePicked = document.getElementById("sequencePicked");
+    const sequenceResetBtn = document.getElementById("sequenceResetBtn");
+    const sequenceSuitButtons = document.getElementById("sequenceSuitButtons");
+    const sequenceRankButtons1 = document.getElementById("sequenceRankButtons1");
+    const sequenceRankButtons2 = document.getElementById("sequenceRankButtons2");
+    const sequenceRankButtons3 = document.getElementById("sequenceRankButtons3");
+    const sequenceCardCode = document.getElementById("sequenceCardCode");
+    const sequenceCardInput = document.getElementById("sequenceCard");
+    const sequenceResult = document.getElementById("sequenceResult");
     const bottomCardInput = document.getElementById("bottomCard");
     const targetCardInput = document.getElementById("targetCard");
     const bottomCardCode = document.getElementById("bottomCardCode");
@@ -683,6 +792,11 @@
     let targetRankValue = "A";
     let guideTargetSuitValue = "S";
     let guideTargetRankValue = "A";
+    let sequenceStep = "bottom";
+    let sequenceSuitValue = "C";
+    let sequenceRankValue = "A";
+    let sequenceBottomCode = "";
+    let sequenceTargetCode = "";
 
     function normalizeCard(raw) {
       const value = (raw || "").trim().toUpperCase();
@@ -1362,7 +1476,7 @@
 
         const positionEl = document.createElement("div");
         positionEl.className = "stack-position";
-        positionEl.textContent = `${index + 1}枚目`;
+        positionEl.textContent = String(index + 1);
 
         const faceEl = document.createElement("div");
         faceEl.className = "stack-face";
@@ -1378,6 +1492,90 @@
         cardEl.append(positionEl, faceEl);
         stackGrid.appendChild(cardEl);
       });
+    }
+
+    function setInputMode(mode) {
+      const isSequence = mode === "sequence";
+      standardModeBtn.classList.toggle("active", !isSequence);
+      sequenceModeBtn.classList.toggle("active", isSequence);
+      standardInputView.classList.toggle("active", !isSequence);
+      sequenceInputView.classList.toggle("active", isSequence);
+      if (isSequence) {
+        resetSequenceInput();
+      }
+    }
+
+    function resetSequenceInput() {
+      sequenceStep = "bottom";
+      sequenceSuitValue = "C";
+      sequenceRankValue = "A";
+      sequenceBottomCode = "";
+      sequenceTargetCode = "";
+      sequenceResult.style.display = "none";
+      sequenceResult.innerHTML = "";
+      syncSequencePickers();
+    }
+
+    function syncSequencePickers() {
+      const title = sequenceStep === "bottom" ? "ボトムカード" : "選ばれたカード";
+      sequenceTitle.textContent = title;
+      if (sequenceStep === "bottom") {
+        sequencePicked.textContent = "未選択";
+      } else {
+        sequencePicked.textContent = "ボトム: " + formatCardForDisplay(sequenceBottomCode);
+      }
+
+      buildButtonRow(sequenceSuitButtons, SUIT_ROWS, () => sequenceSuitValue, (value) => {
+        sequenceSuitValue = value;
+        syncSequencePickers();
+      }, true);
+      buildButtonRow(sequenceRankButtons1, RANK_ROWS[0], () => sequenceRankValue, completeSequenceRankPick);
+      buildButtonRow(sequenceRankButtons2, RANK_ROWS[1], () => sequenceRankValue, completeSequenceRankPick);
+      buildButtonRow(sequenceRankButtons3, RANK_ROWS[2], () => sequenceRankValue, completeSequenceRankPick);
+      setCardDisplay(sequenceSuitValue, sequenceRankValue, sequenceCardCode, sequenceCardInput);
+    }
+
+    function completeSequenceRankPick(value) {
+      sequenceRankValue = value;
+      const pickedCode = sequenceSuitValue + "-" + sequenceRankValue;
+      setCardDisplay(sequenceSuitValue, sequenceRankValue, sequenceCardCode, sequenceCardInput);
+
+      if (sequenceStep === "bottom") {
+        sequenceBottomCode = pickedCode;
+        bottomSuitValue = sequenceSuitValue;
+        bottomRankValue = sequenceRankValue;
+        sequenceStep = "target";
+        sequenceSuitValue = "S";
+        sequenceRankValue = "A";
+        syncCardPickers();
+        syncSequencePickers();
+        render();
+        return;
+      }
+
+      sequenceTargetCode = pickedCode;
+      targetSuitValue = sequenceSuitValue;
+      targetRankValue = sequenceRankValue;
+      syncCardPickers();
+      syncSequencePickers();
+      render();
+      renderSequenceResult();
+    }
+
+    function renderSequenceResult() {
+      const calc = calculatePosition(ACTIVE_DECK, sequenceBottomCode, sequenceTargetCode);
+      if (calc.error) {
+        sequenceResult.style.display = "block";
+        sequenceResult.textContent = calc.error;
+        return;
+      }
+      const backPosition = calc.position;
+      const facePosition = 53 - calc.position;
+      sequenceResult.style.display = "block";
+      sequenceResult.innerHTML =
+        '<span class="result-card">' + formatCardForDisplay(sequenceTargetCode) + '</span>' +
+        '<span class="result-main">上から ' + backPosition + '</span>' +
+        '<span class="result-sub">表向き: ' + facePosition + ' / ボトム: ' + formatCardForDisplay(sequenceBottomCode) + '</span>';
     }
 
     let pendingCutBottomCode = null;
@@ -1518,6 +1716,7 @@
     }
     syncCardPickers();
     syncGuideTargetPickers();
+    syncSequencePickers();
     savePhrasesBtn.addEventListener("click", savePhrases);
     clearPhrasesBtn.addEventListener("click", () => {
       const ok = confirm("フレーズ設定をすべて削除します。よろしいですか？");
@@ -1559,6 +1758,9 @@
         importPhrasesFile.value = "";
       }
     });
+    standardModeBtn.addEventListener("click", () => setInputMode("standard"));
+    sequenceModeBtn.addEventListener("click", () => setInputMode("sequence"));
+    sequenceResetBtn.addEventListener("click", resetSequenceInput);
     openSettingsBtn.addEventListener("click", openSettings);
     openPhraseSettingsBtn.addEventListener("click", () => showSettingsView("phrase"));
     openStackViewBtn.addEventListener("click", () => showSettingsView("stack"));
