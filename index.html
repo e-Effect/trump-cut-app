@@ -435,31 +435,31 @@
     }
     .sequence-result .result-card {
       display: block;
-      font-size: 1.45rem;
+      font-size: 1.15rem;
       line-height: 1.1;
-      margin-bottom: 4px;
+      margin-bottom: 3px;
     }
     .sequence-result .result-main {
       display: block;
-      font-size: 1.85rem;
+      font-size: 1.35rem;
       line-height: 1.05;
     }
     .sequence-result .result-sub {
       display: block;
-      font-size: 0.95rem;
-      margin-top: 6px;
+      font-size: 0.9rem;
+      margin-top: 5px;
     }
     .sequence-result .panel-lucky {
-      font-size: clamp(1.35rem, 5vw, 2.45rem);
-      line-height: 1.2;
+      font-size: clamp(1.8rem, 7vw, 3.6rem);
+      line-height: 1.15;
     }
     .sequence-result .panel-phrase {
-      font-size: clamp(1.2rem, 4.5vw, 2.05rem);
-      line-height: 1.25;
+      font-size: clamp(1.55rem, 6vw, 3rem);
+      line-height: 1.18;
     }
     .sequence-result .panel-spell {
-      font-size: clamp(1.1rem, 4vw, 1.8rem);
-      line-height: 1.25;
+      font-size: clamp(1.4rem, 5.4vw, 2.65rem);
+      line-height: 1.2;
     }
     .sequence-picker {
       min-height: 58vh;
@@ -593,7 +593,7 @@
         grid-template-columns: 1fr;
       }
       .sequence-result .result-main {
-        font-size: 2.2rem;
+        font-size: 1.25rem;
       }
       #sequenceInputView.sequence-phase-suit #sequenceSuitButtons {
         grid-template-rows: repeat(2, minmax(120px, 1fr));
@@ -610,7 +610,7 @@
 </head>
 <body>
   <main class="container">
-    <div class="version">Version v1.0.33</div>
+    <div class="version">Version v1.0.35</div>
     <div class="header">
       <h1>True Cut</h1>
       <div class="header-actions">
@@ -1771,6 +1771,10 @@
       sequenceResult.appendChild(bluePanel);
     }
 
+    function isSequenceResultActive() {
+      return sequenceInputView.classList.contains("active") && sequenceStep === "result";
+    }
+
     let pendingCutBottomCode = null;
 
     function fillCutPositionSelect() {
@@ -1984,7 +1988,13 @@
         closeSettings();
       }
     });
-    setInterval(render, 1000);
+    setInterval(() => {
+      if (isSequenceResultActive()) {
+        renderSequenceResult();
+        return;
+      }
+      render();
+    }, 1000);
 
     render();
   </script>
