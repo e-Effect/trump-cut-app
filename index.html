@@ -296,6 +296,18 @@
       margin-top: 10px;
       flex-wrap: wrap;
     }
+    .phrase-cloud {
+      margin-top: 18px;
+      padding-top: 14px;
+      border-top: 1px solid #d1d5db;
+    }
+    .phrase-cloud h3 { margin: 0 0 10px; font-size: 1rem; }
+    .cloud-code-row { display: flex; gap: 8px; align-items: center; }
+    .cloud-code-row input { min-width: 0; flex: 1; font-family: ui-monospace, monospace; }
+    .cloud-code-row button { flex: none; min-height: 44px; }
+    .phrase-cloud button:disabled { opacity: 0.5; cursor: wait; }
+    #phraseCloudStatus { min-height: 1.5em; overflow-wrap: anywhere; }
+    #phraseCloudStatus[data-error="true"] { color: #b91c1c; }
     .stack-grid {
       display: grid;
       grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -610,7 +622,7 @@
 </head>
 <body>
   <main class="container">
-    <div class="version">Version v1.0.35</div>
+    <div class="version">Version v1.0.36</div>
     <div class="header">
       <h1>True Cut</h1>
       <div class="header-actions">
@@ -743,6 +755,19 @@
           <button id="importPhrasesBtn" type="button">JSONインポート</button>
           <input id="importPhrasesFile" class="import-input" type="file" accept="application/json,.json" />
         </div>
+        <div class="phrase-cloud">
+          <h3>端末間で共有</h3>
+          <label for="phraseCloudCode">合言葉</label>
+          <div class="cloud-code-row">
+            <input id="phraseCloudCode" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="80" aria-label="共有の合言葉" />
+            <button id="copyPhraseCloudCodeBtn" type="button">コピー</button>
+          </div>
+          <div class="settings-actions">
+            <button id="uploadPhrasesBtn" type="button">クラウドに保存</button>
+            <button id="downloadPhrasesBtn" type="button">合言葉で取得</button>
+          </div>
+          <div id="phraseCloudStatus" class="hint" role="status" aria-live="polite"></div>
+        </div>
       </section>
       <section id="stackView" class="settings settings-view">
         <button id="backToSettingsMenuFromStackBtn" class="back-btn" type="button">← 設定に戻る</button>
@@ -869,6 +894,13 @@
 
     const ACTIVE_DECK = MNEMONICA_COMPACT.map(fromCompactCard);
     const PHRASE_STORAGE_KEY = "trump-cut-app-phrases-v1";
+    const PHRASE_CLOUD_URL = "https://true-cut-phrases.a-line.workers.dev";
+    const phraseCloudCode = document.getElementById("phraseCloudCode");
+    const phraseCloudStatus = document.getElementById("phraseCloudStatus");
+    const uploadPhrasesBtn = document.getElementById("uploadPhrasesBtn");
+    const downloadPhrasesBtn = document.getElementById("downloadPhrasesBtn");
+    const copyPhraseCloudCodeBtn = document.getElementById("copyPhraseCloudCodeBtn");
+    let phraseCloudBusy = false;
     const SUIT_ROWS = ["H", "C", "D", "S"];
     const RANK_ROWS = [
       ["A", "2", "3", "4", "5"],
@@ -1275,6 +1307,80 @@
       setPhraseState(normalized);
       applyPhrasesToInputs();
       render();
+    }
+
+    function setPhraseCloudStatus(message, error = false) {
+      phraseCloudStatus.textContent = message;
+      phraseCloudStatus.dataset.error = String(error);
+    }
+
+    async function transferCloudPhrases(action) {
+      if (phraseCloudBusy) return;
+      const code = phraseCloudCode.value.replace(/-/g, "").trim().toLowerCase();
+      if (action === "download" && !/^[a-f0-9]{32}$/.test(code)) {
+        setPhraseCloudStatus("保存時に発行された合言葉を入力してください。", true);
+        return;
+      }
+      phraseCloudBusy = true;
+      uploadPhrasesBtn.disabled = downloadPhrasesBtn.disabled = copyPhraseCloudCodeBtn.disabled = true;
+      phraseCloudCode.disabled = true;
+      setPhraseCloudStatus(action === "upload" ? "クラウドに保存しています…" : "フレーズを取得しています…");
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 20000);
+      try {
+        const response = await fetch(PHRASE_CLOUD_URL + "/" + action, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(action === "upload" ? { phrases: collectPhraseStateFromInputs() } : { code }),
+          signal: controller.signal,
+          cache: "no-store"
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "クラウドとの通信に失敗しました。");
+        if (action === "upload") {
+          if (!/^[a-f0-9]{8}(?:-[a-f0-9]{8}){3}$/.test(data.code)) throw new Error("保存結果を確認できませんでした。");
+          phraseCloudCode.value = data.code;
+          setPhraseCloudStatus("保存しました。別端末ではこの合言葉で取得できます。合言葉は大切に保管してください。");
+        } else {
+          if (data.app !== "True Cut" || !data.phrases ||
+              !Array.from({ length: 52 }, (_, i) => data.phrases[String(i + 1)]).every(entry =>
+                entry && typeof entry.text === "string" && ["back", "front"].includes(entry.orientation))) {
+            throw new Error("取得したフレーズの形式が正しくありません。");
+          }
+          if (!confirm("この端末のフレーズ設定を、クラウドの内容に置き換えますか？")) {
+            setPhraseCloudStatus("取得をキャンセルしました。");
+            return;
+          }
+          importPhrasesFromObject(data);
+          if (sequenceStep === "result") renderSequenceResult();
+          setPhraseCloudStatus("フレーズと向きをこの端末に保存しました。");
+        }
+        // The transfer remains successful even if remembering the code is unavailable.
+        try { localStorage.setItem("trump-cut-cloud-code", phraseCloudCode.value); } catch {}
+      } catch (error) {
+        setPhraseCloudStatus(error.name === "AbortError" ? "通信がタイムアウトしました。接続を確認して再試行してください。" :
+          error instanceof TypeError ? "クラウドに接続できません。インターネット接続を確認してください。" : error.message, true);
+      } finally {
+        clearTimeout(timeout);
+        phraseCloudBusy = false;
+        uploadPhrasesBtn.disabled = downloadPhrasesBtn.disabled = copyPhraseCloudCodeBtn.disabled = false;
+        phraseCloudCode.disabled = false;
+      }
+    }
+
+    async function copyCloudPhraseCode() {
+      if (!phraseCloudCode.value.trim()) {
+        setPhraseCloudStatus("先にクラウドに保存するか、合言葉を入力してください。", true);
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(phraseCloudCode.value.trim());
+        setPhraseCloudStatus("合言葉をコピーしました。");
+      } catch {
+        phraseCloudCode.focus();
+        phraseCloudCode.select();
+        setPhraseCloudStatus("合言葉を選択しました。コピーしてください。");
+      }
     }
 
     function loadPhrases() {
@@ -1890,6 +1996,10 @@
     }
     buildPhraseInputs();
     applyPhrasesToInputs();
+    try { phraseCloudCode.value = localStorage.getItem("trump-cut-cloud-code") || ""; } catch {}
+    uploadPhrasesBtn.addEventListener("click", () => transferCloudPhrases("upload"));
+    downloadPhrasesBtn.addEventListener("click", () => transferCloudPhrases("download"));
+    copyPhraseCloudCodeBtn.addEventListener("click", copyCloudPhraseCode);
     for (const input of getPhraseInputs()) {
       input.addEventListener("input", () => {
         const pos = Number(input.dataset.position);
