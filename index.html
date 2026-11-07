@@ -595,6 +595,13 @@
       color: #312e81;
     }
     @media (max-width: 700px) {
+      body { padding: 12px; }
+      .container { padding: 14px; }
+      .header { flex-wrap: wrap; gap: 8px; }
+      .header h1 { white-space: nowrap; }
+      .header-actions { gap: 6px; }
+      .refresh-btn { min-width: 52px; padding: 0 8px; white-space: nowrap; }
+      .stack-grid { grid-template-columns: repeat(auto-fit, minmax(56px, 1fr)); }
       .row {
         grid-template-columns: 1fr;
       }
@@ -622,7 +629,7 @@
 </head>
 <body>
   <main class="container">
-    <div class="version">Version v1.0.36</div>
+    <div class="version">Version v1.0.37</div>
     <div class="header">
       <h1>True Cut</h1>
       <div class="header-actions">
@@ -753,8 +760,10 @@
           <button id="clearPhrasesBtn" type="button">フレーズを全消去</button>
           <button id="exportPhrasesBtn" type="button">JSONエクスポート</button>
           <button id="importPhrasesBtn" type="button">JSONインポート</button>
+          <button id="restorePhrasesBtn" type="button" disabled>直前の設定に戻す</button>
           <input id="importPhrasesFile" class="import-input" type="file" accept="application/json,.json" />
         </div>
+        <div id="phraseSaveStatus" class="hint" role="status" aria-live="polite"></div>
         <div class="phrase-cloud">
           <h3>端末間で共有</h3>
           <label for="phraseCloudCode">合言葉</label>
@@ -894,6 +903,11 @@
 
     const ACTIVE_DECK = MNEMONICA_COMPACT.map(fromCompactCard);
     const PHRASE_STORAGE_KEY = "trump-cut-app-phrases-v1";
+    const PHRASE_BACKUP_KEY = "trump-cut-app-phrases-backup-v1";
+    const restorePhrasesBtn = document.getElementById("restorePhrasesBtn");
+    const phraseSaveStatus = document.getElementById("phraseSaveStatus");
+    let phraseMemoryState = null;
+    let phraseMemoryOnly = false;
     const PHRASE_CLOUD_URL = "https://true-cut-phrases.a-line.workers.dev";
     const phraseCloudCode = document.getElementById("phraseCloudCode");
     const phraseCloudStatus = document.getElementById("phraseCloudStatus");
@@ -1196,46 +1210,79 @@
       return Array.from(phraseGrid.querySelectorAll("select[data-position]"));
     }
 
-    function getPhraseState() {
-      const raw = localStorage.getItem(PHRASE_STORAGE_KEY);
-      const empty = {};
-      for (let i = 1; i <= 52; i += 1) {
-        empty[String(i)] = { text: "", orientation: "back", autoFrom: null };
-      }
-      if (!raw) {
-        return empty;
-      }
-      try {
-        const data = JSON.parse(raw);
-        // backward compatibility: old format {"1":"text", ...}
-        if (!data || typeof data !== "object") {
-          return empty;
-        }
-        if (!data["1"] || typeof data["1"] === "string") {
-          for (let i = 1; i <= 52; i += 1) {
-            const key = String(i);
-            const text = typeof data[key] === "string" ? data[key].trim() : "";
-            empty[key] = { text, orientation: "back", autoFrom: null };
-          }
-          return empty;
-        }
-        for (let i = 1; i <= 52; i += 1) {
-          const key = String(i);
-          const entry = data[key] || {};
-          empty[key] = {
-            text: typeof entry.text === "string" ? entry.text.trim() : "",
-            orientation: entry.orientation === "front" ? "front" : "back",
-            autoFrom: Number.isInteger(entry.autoFrom) ? entry.autoFrom : null
-          };
-        }
-        return empty;
-      } catch {
-        return empty;
-      }
+    function emptyPhraseState() {
+      return Object.fromEntries(Array.from({ length: 52 }, (_, i) =>
+        [String(i + 1), { text: "", orientation: "back", autoFrom: null }]));
     }
 
-    function setPhraseState(state) {
-      localStorage.setItem(PHRASE_STORAGE_KEY, JSON.stringify(state));
+    function normalizePhraseData(data) {
+      const isObject = value => value !== null && typeof value === "object" && !Array.isArray(value);
+      if (!isObject(data) || (data.app !== undefined && data.app !== "True Cut") ||
+          (data.type !== undefined && data.type !== "phrase-settings") ||
+          (data.version !== undefined && ![1, 2].includes(data.version))) {
+        throw new Error("True CutのフレーズJSONを選んでください。");
+      }
+      const source = Object.prototype.hasOwnProperty.call(data, "phrases") ? data.phrases : data;
+      if (!isObject(source) || !Object.keys(source).length ||
+          Object.keys(source).some(key => !/^(?:[1-9]|[1-4][0-9]|5[0-2])$/.test(key))) {
+        throw new Error("フレーズの形式が正しくありません。設定は変更していません。");
+      }
+      const normalized = emptyPhraseState();
+      for (const [key, value] of Object.entries(source)) {
+        // Keep compatibility with the original {"1":"text", ...} format.
+        if (typeof value === "string") {
+          normalized[key].text = value.trim();
+          continue;
+        }
+        if (!isObject(value) || typeof value.text !== "string" ||
+            (value.orientation !== undefined && !["back", "front"].includes(value.orientation)) ||
+            (value.autoFrom != null && !(Number.isInteger(value.autoFrom) && value.autoFrom >= 1 && value.autoFrom <= 52 && value.autoFrom !== Number(key)))) {
+          throw new Error("フレーズの形式が正しくありません。設定は変更していません。");
+        }
+        normalized[key] = { text: value.text.trim(), orientation: value.orientation || "back", autoFrom: value.autoFrom ?? null };
+      }
+      return normalized;
+    }
+
+    function setPhraseSaveStatus(message, error = false) {
+      phraseSaveStatus.textContent = message;
+      phraseSaveStatus.style.color = error ? "#b91c1c" : "";
+    }
+
+    function getPhraseState() {
+      if (phraseMemoryOnly) return phraseMemoryState || emptyPhraseState();
+      try {
+        const raw = localStorage.getItem(PHRASE_STORAGE_KEY);
+        phraseMemoryState = raw ? normalizePhraseData(JSON.parse(raw)) : emptyPhraseState();
+      } catch {
+        phraseMemoryOnly = true;
+        setPhraseSaveStatus("保存データを読み込めません。この画面での変更はJSONエクスポートで控えを作ってください。", true);
+      }
+      return phraseMemoryState || emptyPhraseState();
+    }
+
+    function updatePhraseBackupButton() {
+      try { restorePhrasesBtn.disabled = !localStorage.getItem(PHRASE_BACKUP_KEY); }
+      catch { restorePhrasesBtn.disabled = true; }
+    }
+
+    function setPhraseState(state, backup = false) {
+      const previous = backup ? getPhraseState() : null;
+      try {
+        if (backup) localStorage.setItem(PHRASE_BACKUP_KEY, JSON.stringify({ savedAt: new Date().toISOString(), phrases: previous }));
+        localStorage.setItem(PHRASE_STORAGE_KEY, JSON.stringify(state));
+        if (phraseMemoryOnly) setPhraseSaveStatus("この端末に保存しました。");
+        phraseMemoryOnly = false;
+      } catch {
+        if (backup) {
+          updatePhraseBackupButton();
+          throw new Error("バックアップと保存ができないため、設定を置き換えませんでした。JSONエクスポートで控えを作ってください。");
+        }
+        phraseMemoryOnly = true;
+        setPhraseSaveStatus("この端末に保存できません。閉じる前にJSONエクスポートで控えを作ってください。", true);
+      }
+      phraseMemoryState = state;
+      updatePhraseBackupButton();
     }
 
     function getMirrorPosition(position) {
@@ -1243,28 +1290,33 @@
     }
 
     function savePhrases() {
-      const state = collectPhraseStateFromInputs();
+      const state = getPhraseState();
       setPhraseState(state);
       render();
     }
 
-    function collectPhraseStateFromInputs() {
-      const state = {};
-      for (const input of getPhraseInputs()) {
-        const key = input.dataset.position;
-        const select = document.getElementById(`phrase-orientation-${key}`);
-        const autoFrom = Number(input.dataset.autoFrom || 0);
-        state[key] = {
-          text: input.value.trim(),
-          orientation: select && select.value === "front" ? "front" : "back",
-          autoFrom: autoFrom > 0 ? autoFrom : null
-        };
+    function savePhraseEdit(position, field) {
+      const input = document.getElementById(`phrase-input-${position}`);
+      const select = document.getElementById(`phrase-orientation-${position}`);
+      const value = field === "text" ? input.value.trim() : select.value;
+      // Merge the edited field into the latest state, not a stale tab's 52 inputs.
+      const state = getPhraseState();
+      const source = { ...state[String(position)], [field]: value, autoFrom: null };
+      state[String(position)] = source;
+      const mirrorKey = String(getMirrorPosition(position));
+      const mirror = state[mirrorKey];
+      if (source.text && (!mirror.text || mirror.autoFrom === position)) {
+        state[mirrorKey] = { text: source.text, orientation: source.orientation === "back" ? "front" : "back", autoFrom: position };
+      } else if (!source.text && mirror.autoFrom === position) {
+        state[mirrorKey] = { text: "", orientation: "back", autoFrom: null };
       }
-      return state;
+      setPhraseState(state);
+      applyPhrasesToInputs(true);
+      render();
     }
 
     function exportPhrases() {
-      const phraseState = collectPhraseStateFromInputs();
+      const phraseState = getPhraseState();
       const payload = {
         app: "True Cut",
         type: "phrase-settings",
@@ -1285,28 +1337,15 @@
     }
 
     function importPhrasesFromObject(data) {
-      const source = data && typeof data === "object" ? data.phrases || data : {};
-      if (!source || typeof source !== "object") {
-        throw new Error("JSONの形式が正しくありません");
-      }
-
-      const normalized = {};
-      for (let i = 1; i <= 52; i += 1) {
-        const key = String(i);
-        const value = source[key];
-        if (typeof value === "string") {
-          normalized[key] = { text: value.trim(), orientation: "back", autoFrom: null };
-          continue;
-        }
-        normalized[key] = {
-          text: value && typeof value.text === "string" ? value.text.trim() : "",
-          orientation: value && value.orientation === "front" ? "front" : "back",
-          autoFrom: value && Number.isInteger(value.autoFrom) ? value.autoFrom : null
-        };
-      }
-      setPhraseState(normalized);
+      const normalized = normalizePhraseData(data);
+      const count = Object.values(normalized).filter(entry => entry.text).length;
+      if (!confirm(`フレーズ設定を読み込んだ内容（登録${count}件）に置き換えますか？\n現在の設定は「直前の設定に戻す」で復元できます。`)) return false;
+      setPhraseState(normalized, true);
       applyPhrasesToInputs();
       render();
+      if (isSequenceResultActive()) renderSequenceResult();
+      setPhraseSaveStatus("読み込みました。変更前の設定もバックアップしました。");
+      return true;
     }
 
     function setPhraseCloudStatus(message, error = false) {
@@ -1331,7 +1370,7 @@
         const response = await fetch(PHRASE_CLOUD_URL + "/" + action, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(action === "upload" ? { phrases: collectPhraseStateFromInputs() } : { code }),
+          body: JSON.stringify(action === "upload" ? { phrases: getPhraseState() } : { code }),
           signal: controller.signal,
           cache: "no-store"
         });
@@ -1347,11 +1386,10 @@
                 entry && typeof entry.text === "string" && ["back", "front"].includes(entry.orientation))) {
             throw new Error("取得したフレーズの形式が正しくありません。");
           }
-          if (!confirm("この端末のフレーズ設定を、クラウドの内容に置き換えますか？")) {
+          if (!importPhrasesFromObject(data)) {
             setPhraseCloudStatus("取得をキャンセルしました。");
             return;
           }
-          importPhrasesFromObject(data);
           if (sequenceStep === "result") renderSequenceResult();
           setPhraseCloudStatus("フレーズと向きをこの端末に保存しました。");
         }
@@ -1387,12 +1425,12 @@
       return getPhraseState();
     }
 
-    function applyPhrasesToInputs() {
+    function applyPhrasesToInputs(preserveActive = false) {
       const phrases = loadPhrases();
       for (const input of getPhraseInputs()) {
         const key = input.dataset.position;
         const entry = phrases[key] || { text: "", orientation: "back", autoFrom: null };
-        input.value = entry.text || "";
+        if (!(preserveActive && document.activeElement === input) && input.value !== entry.text) input.value = entry.text;
         input.dataset.autoFrom = entry.autoFrom ? String(entry.autoFrom) : "";
         const select = document.getElementById(`phrase-orientation-${key}`);
         if (select) {
@@ -1401,54 +1439,6 @@
         const badge = document.getElementById(`phrase-auto-${key}`);
         if (badge) {
           badge.style.visibility = entry.autoFrom ? "visible" : "hidden";
-        }
-      }
-    }
-
-    function updatePhraseAutoLink(sourcePos) {
-      const sourceInput = document.getElementById(`phrase-input-${sourcePos}`);
-      const sourceSelect = document.getElementById(`phrase-orientation-${sourcePos}`);
-      if (!sourceInput || !sourceSelect) {
-        return;
-      }
-      sourceInput.dataset.autoFrom = "";
-      const sourceText = sourceInput.value.trim();
-      const mirrorPos = getMirrorPosition(sourcePos);
-      const mirrorInput = document.getElementById(`phrase-input-${mirrorPos}`);
-      const mirrorSelect = document.getElementById(`phrase-orientation-${mirrorPos}`);
-      const mirrorBadge = document.getElementById(`phrase-auto-${mirrorPos}`);
-      if (!mirrorInput || !mirrorSelect || !mirrorBadge) {
-        return;
-      }
-
-      const mirrorAutoFrom = Number(mirrorInput.dataset.autoFrom || 0);
-      const mirrorText = mirrorInput.value.trim();
-      const shouldAutoFill = sourceText && (mirrorText === "" || mirrorAutoFrom === sourcePos);
-      if (shouldAutoFill) {
-        mirrorInput.value = sourceText;
-        mirrorInput.dataset.autoFrom = String(sourcePos);
-        mirrorSelect.value = sourceSelect.value === "back" ? "front" : "back";
-        mirrorBadge.style.visibility = "visible";
-      } else if (mirrorAutoFrom === sourcePos && !sourceText) {
-        mirrorInput.value = "";
-        mirrorInput.dataset.autoFrom = "";
-        mirrorSelect.value = "back";
-        mirrorBadge.style.visibility = "hidden";
-      }
-
-      const sourceBadge = document.getElementById(`phrase-auto-${sourcePos}`);
-      if (sourceBadge) {
-        sourceBadge.style.visibility = "hidden";
-      }
-    }
-
-    function detachPhraseAuto(pos) {
-      const input = document.getElementById(`phrase-input-${pos}`);
-      const badge = document.getElementById(`phrase-auto-${pos}`);
-      if (input && input.dataset.autoFrom) {
-        input.dataset.autoFrom = "";
-        if (badge) {
-          badge.style.visibility = "hidden";
         }
       }
     }
@@ -1584,7 +1574,7 @@
       ];
 
       const line1 = `${formatCardForDisplay(target)} は上から ${backPosition} 枚目（表向き: ${facePosition} 枚目）`;
-      basePanelEl.textContent = line1;
+      if (basePanelEl.textContent !== line1) basePanelEl.textContent = line1;
 
       if (luckyMatches.length > 0) {
         luckyPanelEl.style.display = "block";
@@ -1599,22 +1589,17 @@
 
       if (spellMatches.length > 0) {
         spellListEl.style.display = "flex";
-        spellListEl.innerHTML = "";
-        for (const match of spellMatches) {
-          const item = document.createElement("div");
-          item.className = "panel panel-spell spell-item";
-          item.textContent = match;
-          spellListEl.appendChild(item);
-        }
+        syncResultPanels(spellListEl, spellMatches.map((text, index) => ({ key: "spell-" + index, className: "panel panel-spell spell-item", text })));
       } else {
         spellListEl.style.display = "none";
-        spellListEl.innerHTML = "";
+        syncResultPanels(spellListEl, []);
       }
 
       if (phrase) {
         phrasePanelEl.style.display = "block";
         const orient = phraseEntry.orientation === "front" ? "【おもて向き】" : "【うら向き】";
-        phrasePanelEl.textContent = `「${phrase}」${orient}`;
+        const phraseText = `「${phrase}」${orient}`;
+        if (phrasePanelEl.textContent !== phraseText) phrasePanelEl.textContent = phraseText;
       } else {
         phrasePanelEl.style.display = "none";
         phrasePanelEl.textContent = "";
@@ -1691,6 +1676,7 @@
 
     function setInputMode(mode) {
       const isSequence = mode === "sequence";
+      if ((isSequence ? sequenceInputView : standardInputView).classList.contains("active")) return;
       standardModeBtn.classList.toggle("active", !isSequence);
       sequenceModeBtn.classList.toggle("active", isSequence);
       standardInputView.classList.toggle("active", !isSequence);
@@ -1818,19 +1804,35 @@
       renderSequenceResult();
     }
 
-    function appendSequencePanel(className, text) {
-      const panel = document.createElement("div");
-      panel.className = className;
-      panel.textContent = text;
-      sequenceResult.appendChild(panel);
+    function syncResultPanels(container, entries) {
+      const existing = new Map(Array.from(container.children, node => [node.dataset.resultKey, node]));
+      entries.forEach((entry, index) => {
+        const panel = existing.get(entry.key) || document.createElement("div");
+        existing.delete(entry.key);
+        panel.dataset.resultKey = entry.key;
+        panel.className = entry.className;
+        if (entry.fields) {
+          if (panel.childElementCount !== entry.fields.length) {
+            panel.replaceChildren(...entry.fields.map(() => document.createElement("span")));
+          }
+          entry.fields.forEach((field, i) => {
+            const span = panel.children[i];
+            span.className = field.className;
+            if (span.textContent !== field.text) span.textContent = field.text;
+          });
+        } else if (panel.textContent !== entry.text) {
+          panel.textContent = entry.text;
+        }
+        if (container.children[index] !== panel) container.insertBefore(panel, container.children[index] || null);
+      });
+      for (const node of existing.values()) node.remove();
     }
 
     function renderSequenceResult() {
       const calc = calculatePosition(ACTIVE_DECK, sequenceBottomCode, sequenceTargetCode);
-      sequenceResult.innerHTML = "";
       if (calc.error) {
         sequenceResult.style.display = "grid";
-        appendSequencePanel("error sequence-result-panel", calc.error);
+        syncResultPanels(sequenceResult, [{ key: "error", className: "error sequence-result-panel", text: calc.error }]);
         return;
       }
       const backPosition = calc.position;
@@ -1852,29 +1854,26 @@
       ];
 
       sequenceResult.style.display = "grid";
+      const panels = [];
 
       if (luckyMatches.length > 0) {
-        appendSequencePanel("panel panel-lucky sequence-result-panel", luckyMatches.join("\n"));
+        panels.push({ key: "lucky", className: "panel panel-lucky sequence-result-panel", text: luckyMatches.join("\n") });
       } else if (upcomingHints.length > 0) {
-        appendSequencePanel("panel panel-lucky sequence-result-panel", upcomingHints.join("\n"));
+        panels.push({ key: "lucky", className: "panel panel-lucky sequence-result-panel", text: upcomingHints.join("\n") });
       }
 
       if (phrase) {
         const orient = phraseEntry.orientation === "front" ? "\u3010\u304a\u3082\u3066\u5411\u304d\u3011" : "\u3010\u3046\u3089\u5411\u304d\u3011";
-        appendSequencePanel("panel panel-phrase sequence-result-panel", "\u300c" + phrase + "\u300d" + orient);
+        panels.push({ key: "phrase", className: "panel panel-phrase sequence-result-panel", text: "\u300c" + phrase + "\u300d" + orient });
       }
 
-      for (const match of spellMatches) {
-        appendSequencePanel("panel panel-spell sequence-result-panel", match);
-      }
-
-      const bluePanel = document.createElement("div");
-      bluePanel.className = "sequence-result-blue sequence-result-panel";
-      bluePanel.innerHTML =
-        '<span class="result-card">' + formatCardForDisplay(sequenceTargetCode) + '</span>' +
-        '<span class="result-main">\u4e0a\u304b\u3089 ' + backPosition + '</span>' +
-        '<span class="result-sub">\u8868\u5411\u304d: ' + facePosition + ' / \u30dc\u30c8\u30e0: ' + formatCardForDisplay(sequenceBottomCode) + '</span>';
-      sequenceResult.appendChild(bluePanel);
+      spellMatches.forEach((match, index) => panels.push({ key: "spell-" + index, className: "panel panel-spell sequence-result-panel", text: match }));
+      panels.push({ key: "base", className: "sequence-result-blue sequence-result-panel", fields: [
+        { className: "result-card", text: formatCardForDisplay(sequenceTargetCode) },
+        { className: "result-main", text: "\u4e0a\u304b\u3089 " + backPosition },
+        { className: "result-sub", text: "\u8868\u5411\u304d: " + facePosition + " / \u30dc\u30c8\u30e0: " + formatCardForDisplay(sequenceBottomCode) }
+      ] });
+      syncResultPanels(sequenceResult, panels);
     }
 
     function isSequenceResultActive() {
@@ -1996,6 +1995,17 @@
     }
     buildPhraseInputs();
     applyPhrasesToInputs();
+    updatePhraseBackupButton();
+    window.addEventListener("storage", event => {
+      if (event.key === PHRASE_STORAGE_KEY || event.key === null) {
+        if (!phraseMemoryOnly) {
+          applyPhrasesToInputs(true);
+          render();
+          if (isSequenceResultActive()) renderSequenceResult();
+        }
+      }
+      if (event.key === PHRASE_BACKUP_KEY || event.key === null) updatePhraseBackupButton();
+    });
     try { phraseCloudCode.value = localStorage.getItem("trump-cut-cloud-code") || ""; } catch {}
     uploadPhrasesBtn.addEventListener("click", () => transferCloudPhrases("upload"));
     downloadPhrasesBtn.addEventListener("click", () => transferCloudPhrases("download"));
@@ -2006,9 +2016,7 @@
         if (!Number.isInteger(pos)) {
           return;
         }
-        detachPhraseAuto(pos);
-        updatePhraseAutoLink(pos);
-        savePhrases();
+        savePhraseEdit(pos, "text");
       });
     }
     for (const select of getPhraseSelects()) {
@@ -2017,34 +2025,43 @@
         if (!Number.isInteger(pos)) {
           return;
         }
-        detachPhraseAuto(pos);
-        savePhrases();
+        savePhraseEdit(pos, "orientation");
       });
     }
     syncCardPickers();
     syncGuideTargetPickers();
     syncSequencePickers();
-    savePhrasesBtn.addEventListener("click", savePhrases);
+    savePhrasesBtn.addEventListener("click", () => {
+      savePhrases();
+      if (!phraseMemoryOnly) setPhraseSaveStatus("この端末に保存しました。");
+    });
+    restorePhrasesBtn.addEventListener("click", () => {
+      try {
+        const raw = localStorage.getItem(PHRASE_BACKUP_KEY);
+        if (!raw) return;
+        const state = normalizePhraseData(JSON.parse(raw));
+        if (!confirm("フレーズ設定を直前のバックアップに戻しますか？")) return;
+        setPhraseState(state);
+        applyPhrasesToInputs();
+        render();
+        if (isSequenceResultActive()) renderSequenceResult();
+        if (!phraseMemoryOnly) setPhraseSaveStatus("直前の設定に戻しました。");
+      } catch {
+        setPhraseSaveStatus("バックアップを読み込めませんでした。現在の設定は変更していません。", true);
+      }
+    });
     clearPhrasesBtn.addEventListener("click", () => {
       const ok = confirm("フレーズ設定をすべて削除します。よろしいですか？");
       if (!ok) {
         return;
       }
-      for (const input of getPhraseInputs()) {
-        input.value = "";
-        input.dataset.autoFrom = "";
-      }
-      for (const select of getPhraseSelects()) {
-        select.value = "back";
-      }
-      for (let i = 1; i <= 52; i += 1) {
-        const badge = document.getElementById(`phrase-auto-${i}`);
-        if (badge) {
-          badge.style.visibility = "hidden";
-        }
-      }
-      localStorage.removeItem(PHRASE_STORAGE_KEY);
-      render();
+      try {
+        setPhraseState(emptyPhraseState(), true);
+        applyPhrasesToInputs();
+        render();
+        if (isSequenceResultActive()) renderSequenceResult();
+        setPhraseSaveStatus("全消去しました。直前の設定はバックアップから戻せます。");
+      } catch (error) { setPhraseSaveStatus(error.message, true); }
     });
     exportPhrasesBtn.addEventListener("click", exportPhrases);
     importPhrasesBtn.addEventListener("click", () => {
@@ -2059,8 +2076,8 @@
         const text = await file.text();
         const data = JSON.parse(text);
         importPhrasesFromObject(data);
-      } catch {
-        alert("JSONの読み込みに失敗しました。ファイル内容を確認してください。");
+      } catch (error) {
+        alert(error instanceof SyntaxError ? "JSONの読み込みに失敗しました。設定は変更していません。" : error.message);
       } finally {
         importPhrasesFile.value = "";
       }
